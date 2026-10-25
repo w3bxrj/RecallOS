@@ -1,9 +1,13 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy import update
 
 from app.core.config import settings
+from app.core.db import SessionLocal
+from app.models.job import Job
 from app.core.errors import (
     AppException,
     app_exception_handler,
@@ -12,10 +16,31 @@ from app.core.errors import (
     generic_exception_handler,
 )
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    try:
+        with SessionLocal() as db:
+            db.execute(
+                update(Job)
+                .where(Job.status.in_(["queued", "processing"]))
+                .values(
+                    status="failed",
+                    error_message="Server restarted during processing",
+                )
+            )
+            db.commit()
+    except Exception:
+        pass
+    yield
+
+
 app = FastAPI(
     title="RecallOS API",
     description="Scientific spaced repetition and collaborative study operating system",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS Middleware
@@ -29,7 +54,7 @@ if origins:
         allow_headers=["*"],
     )
 
-from app.routers import auth, users, reviews
+from app.routers import auth, users, reviews, uploads, decks
 
 app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -40,6 +65,8 @@ app.add_exception_handler(Exception, generic_exception_handler)
 app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(reviews.router, prefix="/api")
+app.include_router(uploads.router, prefix="/api")
+app.include_router(decks.router, prefix="/api")
 
 
 
