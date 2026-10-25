@@ -9,18 +9,22 @@ logger = logging.getLogger(__name__)
 
 class AppException(Exception):
     """Custom application exception with an HTTP status code, error code, and message."""
-    def __init__(self, status_code: int, code: str, message: str):
+    def __init__(self, status_code: int, code: str, message: str, details: dict = None):
         self.status_code = status_code
         self.code = code
         self.message = message
+        self.details = details or {}
         super().__init__(message)
 
 
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     """Handler for custom application exceptions."""
+    err_body = {"code": exc.code, "message": exc.message}
+    if exc.details:
+        err_body.update(exc.details)
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": {"code": exc.code, "message": exc.message}},
+        content={"error": err_body},
     )
 
 
