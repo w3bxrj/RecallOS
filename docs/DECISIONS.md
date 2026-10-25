@@ -50,4 +50,17 @@ This log records architectural decisions, trade-offs, and rationale for RecallOS
 - **Context:** Phase 3 requires the background generation pipeline to broadcast progress events, but WebSockets are strictly scoped to Phase 4.
 - **Decision:** Introduce a `JobEventPublisher` protocol in `app.services.events` with methods `chunk_done`, `chunk_failed`, `ready`, and `failed`. Provide a default `NullJobEventPublisher` for Phase 3. In Phase 4, the WebSocket `ConnectionManager` broadcaster will seamlessly inject as the active publisher without modifying pipeline logic.
 
+## ADR-009: Background Job Session Isolation and Startup Recovery Lifecycle
+- **Date:** 2026-10-25
+- **Status:** Accepted
+- **Context:** Render free-tier instances sleep or restart intermittently, killing in-flight background tasks. Reusing request database sessions in background threads causes session state conflicts and leaks.
+- **Decision:** All background tasks (`process_upload_pipeline`, `run_card_generation`) instantiate and manage their own isolated `SessionLocal()` database sessions. During FastAPI application startup (via `lifespan` context manager), any jobs stranded in `queued` or `processing` states are automatically updated to `status='failed'` with `error_message='Server restarted during processing'`. Users are restricted to a single active job at a time (`JOB_IN_PROGRESS` 409).
+
+## ADR-010: Failed Upload Cleanup Strategy for Idempotent Retries
+- **Date:** 2026-10-25
+- **Status:** Accepted
+- **Context:** Files are deduplicated per user by SHA-256 hash. If an earlier upload failed during LLM extraction leaving an empty deck (0 cards), subsequent uploads of the exact same document would otherwise be rejected with a 409 duplicate conflict, blocking the user from ever generating flashcards from that document.
+- **Decision:** During `POST /api/uploads`, if an existing deck matches `(user_id, file_hash)` and has 0 cards (from a failed generation attempt), the system deletes the empty deck and allows the new upload and generation job to proceed normally.
+
+
 
