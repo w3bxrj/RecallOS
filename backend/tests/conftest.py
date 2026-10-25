@@ -22,9 +22,12 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_
 
 
 @pytest.fixture(autouse=True)
-def setup_database() -> Generator[None, None, None]:
+def setup_database(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Creates all database tables before each test and drops them afterwards."""
     Base.metadata.create_all(bind=test_engine)
+    monkeypatch.setattr("app.core.db.SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr("app.services.generator.SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr("app.main.SessionLocal", TestingSessionLocal)
     yield
     Base.metadata.drop_all(bind=test_engine)
 
