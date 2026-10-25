@@ -25,3 +25,16 @@ This log records architectural decisions, trade-offs, and rationale for RecallOS
 - **Status:** Accepted
 - **Context:** PRD Rule 5 requires consistent JSON errors `{"error": {"code": str, "message": str}}` across all endpoints and status codes.
 - **Decision:** Implement a global exception handler in FastAPI intercepting custom `AppException`, FastAPI's `RequestValidationError`, starlette's `HTTPException`, and uncaught `Exception` to guarantee the exact error envelope without leaking internal stack traces.
+
+## ADR-005: Timezone Normalization (Asia/Kolkata) & Date Storage
+- **Date:** 2026-10-25
+- **Status:** Accepted
+- **Context:** Target student cohort is in India (IST, UTC+05:30). Using naive UTC timestamps for daily study streaks and due-date cutoffs creates midnight boundary shifts and confusing scheduling.
+- **Decision:** Use `Asia/Kolkata` as the canonical application timezone. `card_states.due_date` is stored as a pure SQL `Date` (calendar day). Centralize timezone access in `app.core.time` via `today_ist() -> date` and `now_ist() -> datetime` across all services, queries, and background tasks.
+
+## ADR-006: Review Idempotency & Transaction Concurrency
+- **Date:** 2026-10-25
+- **Status:** Accepted
+- **Context:** Mobile or poor network connections can cause duplicate review submissions from button spamming or retry logic, which would otherwise erroneously advance SM-2 intervals multiple times.
+- **Decision:** Allow an optional client-generated `request_id` in `POST /api/reviews`. Use pessimistic row locking (`with_for_update` on PostgreSQL) during review submission. If a review with the same `request_id` was already processed for this card on the same day, return the current card state idempotently without mutating SM-2 state.
+

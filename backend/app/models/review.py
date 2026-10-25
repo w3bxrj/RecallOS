@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
-from sqlalchemy import Integer, DateTime, ForeignKey, Index
+from typing import Optional
+from sqlalchemy import Integer, String, DateTime, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
@@ -18,10 +19,12 @@ class Review(Base):
     )
     prev_interval: Mapped[int] = mapped_column(Integer, nullable=False)
     new_interval: Mapped[int] = mapped_column(Integer, nullable=False)
+    request_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
 
     __table_args__ = (
         Index("ix_reviews_user_reviewed_at", "user_id", "reviewed_at"),
     )
+
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="reviews")
