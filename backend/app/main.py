@@ -29,14 +29,20 @@ if origins:
         allow_headers=["*"],
     )
 
-# Exception Handlers
+from app.routers import auth, users
+
 app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
+
+# Include Routers under /api
+app.include_router(auth.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
 
 
 @app.get("/api/health", tags=["Health"])
 async def health_check() -> dict:
     """Service health check endpoint."""
     return {"status": "ok"}
+
