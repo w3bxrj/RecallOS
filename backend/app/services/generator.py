@@ -1,6 +1,8 @@
+import io
 import logging
 import time
 from typing import List, Optional, Set
+import pypdf
 from sqlalchemy import select
 
 from app.core.db import SessionLocal
@@ -12,8 +14,14 @@ from app.models.card import Card
 from app.models.card_state import CardState
 from app.services.card_validator import validate_card
 from app.services.events import JobEventPublisher, default_event_publisher
+from app.services.extractor import chunk_text
 
 logger = logging.getLogger(__name__)
+
+
+def get_llm_client() -> LLMClient:
+    """Factory function for LLM client (can be overridden in tests)."""
+    return GeminiLLMClient()
 
 
 def run_card_generation(
@@ -30,7 +38,7 @@ def run_card_generation(
     MUST open its own database session and manage its own transaction lifecycle.
     """
     if llm_client is None:
-        llm_client = GeminiLLMClient()
+        llm_client = get_llm_client()
     if publisher is None:
         publisher = default_event_publisher
 
@@ -150,3 +158,83 @@ def run_card_generation(
             pass
     finally:
         db.close()
+
+
+def process_upload_pipeline(
+    job_id: int,
+    user_id: int,
+    deck_id: int,
+    file_bytes: bytes,
+    filename: str,
+    llm_client: Optional[LLMClient] = None,
+    publisher: Optional[JobEventPublisher] = None,
+    delay_between_chunks: float = 0.5,
+) -> None:
+    """Full background pipeline from raw file bytes to generated flashcards."""
+    if llm_client is None:
+        llm_client = get_llm_client()
+    if publisher is None:
+        publisher = default_event_publisher
+
+    db = SessionLocal()
+    try:
+        job = db.get(Job, job_id)
+        if not job:
+            return
+
+        job.status = "processing"
+        db.commit()
+
+        lower_name = filename.lower()
+        full_text = ""
+        if lower_name.endswith(".pdf"):
+            try:
+                reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+                pages_text = []
+                for p in reader.pages:
+                    text = p.extract_text()
+                    if text:
+                        pages_text.append(text.strip())
+                full_text = "\n\n".join(pages_text).strip()
+            except Exception as exc:
+                job.status = "failed"
+                job.error_message = f"Failed to extract text from PDF: {str(exc)}"
+                job.finished_at = now_ist()
+                db.commit()
+                publisher.failed(job_id=job.id, message=job.error_message)
+                return
+        elif lower_name.endswith(".txt"):
+            try:
+                full_text = file_bytes.decode("utf-8").strip()
+            except Exception as exc:
+                job.status = "failed"
+                job.error_message = f"Failed to decode text file: {str(exc)}"
+                job.finished_at = now_ist()
+                db.commit()
+                publisher.failed(job_id=job.id, message=job.error_message)
+                return
+
+        if len(full_text) < 200:
+            job.status = "failed"
+            job.error_message = "This looks like a scanned PDF. Please upload a text-based PDF."
+            job.finished_at = now_ist()
+            db.commit()
+            publisher.failed(job_id=job.id, message=job.error_message)
+            return
+
+        chunks = chunk_text(full_text, target_size=1500, overlap=150, max_chunks=40)
+        job.total_chunks = len(chunks)
+        db.commit()
+
+    finally:
+        db.close()
+
+    run_card_generation(
+        job_id=job_id,
+        user_id=user_id,
+        deck_id=deck_id,
+        chunks=chunks,
+        llm_client=llm_client,
+        publisher=publisher,
+        delay_between_chunks=delay_between_chunks,
+    )
