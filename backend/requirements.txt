@@ -11,3 +11,5 @@ python-multipart==0.0.19
 psycopg2-binary==2.9.10
 pytest==8.3.4
 httpx==0.28.1
+tzdata==2024.2
+
