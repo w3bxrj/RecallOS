@@ -7,10 +7,12 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "recallos-dev-secret-key-32-characters-minimum-for-security"
     JWT_EXPIRE_MINUTES: int = 1440
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-1.5-flash"
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
     MAX_UPLOAD_MB: int = 10
     DAILY_CARD_LIMIT: int = 50
     ENABLE_DUEL: bool = True
+
 
     model_config = SettingsConfigDict(
         env_file=".env",

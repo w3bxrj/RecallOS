@@ -38,3 +38,16 @@ This log records architectural decisions, trade-offs, and rationale for RecallOS
 - **Context:** Mobile or poor network connections can cause duplicate review submissions from button spamming or retry logic, which would otherwise erroneously advance SM-2 intervals multiple times.
 - **Decision:** Allow an optional client-generated `request_id` in `POST /api/reviews`. Use pessimistic row locking (`with_for_update` on PostgreSQL) during review submission. If a review with the same `request_id` was already processed for this card on the same day, return the current card state idempotently without mutating SM-2 state.
 
+## ADR-007: Gemini LLM Client via REST API over HTTPX
+- **Date:** 2026-10-25
+- **Status:** Accepted
+- **Context:** PRD Section 4 specifies Google Gemini API behind an `LLMClient` interface with model configurable via `GEMINI_MODEL`. Heavy SDKs frequently incur breaking API changes, grpc compilation issues, and obscure HTTP retry control.
+- **Decision:** Implement `GeminiLLMClient` adhering to `LLMClient` using standard `httpx.Client`. Connect directly to the Gemini REST API (`generateContent`) using `responseMimeType: "application/json"`. Implement custom backoff for 429 (respecting `Retry-After`), 5xx, timeouts, and JSON syntax errors up to 2 retries.
+
+## ADR-008: Pluggable JobEventPublisher Hook for Live Generation
+- **Date:** 2026-10-25
+- **Status:** Accepted
+- **Context:** Phase 3 requires the background generation pipeline to broadcast progress events, but WebSockets are strictly scoped to Phase 4.
+- **Decision:** Introduce a `JobEventPublisher` protocol in `app.services.events` with methods `chunk_done`, `chunk_failed`, `ready`, and `failed`. Provide a default `NullJobEventPublisher` for Phase 3. In Phase 4, the WebSocket `ConnectionManager` broadcaster will seamlessly inject as the active publisher without modifying pipeline logic.
+
+
