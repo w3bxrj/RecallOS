@@ -4,15 +4,19 @@ from sqlalchemy.orm import sessionmaker, Session
 from app.core.config import settings
 
 # Handle SQLite vs PostgreSQL engine arguments
-connect_args = {}
+engine_kwargs = {"pool_pre_ping": True}
 if settings.DATABASE_URL.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    # PostgreSQL (Neon free tier) pool sizing to prevent connection exhaustion
+    engine_kwargs["pool_size"] = 3
+    engine_kwargs["max_overflow"] = 2
 
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args=connect_args,
-    pool_pre_ping=True,
+    **engine_kwargs,
 )
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
