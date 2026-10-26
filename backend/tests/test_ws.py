@@ -262,3 +262,196 @@ def test_ws_endpoint_snapshot_and_terminal_events(client, db_session):
         assert msg2["data"]["message"] == "Extraction error"
 
 
+def test_ws_e2e_live_generation_stream(client, db_session, monkeypatch):
+    """End-to-end multi-chunk generation streamed live over WebSocket."""
+    import threading
+    from app.models.job import Job
+    from app.models.deck import Deck
+    from app.services.generator import run_card_generation
+    from app.llm.base import LLMClient
+
+    class MockMultiChunkLLM(LLMClient):
+        def __init__(self):
+            self.calls = 0
+
+        def generate_cards(self, chunk_text: str) -> list[dict]:
+            self.calls += 1
+            return [
+                {
+                    "topic": "OS",
+                    "question": f"Question {self.calls}",
+                    "answer": f"Answer {self.calls}",
+                    "distractors": ["Wrong 1", "Wrong 2", "Wrong 3"],
+                }
+            ]
+
+    llm = MockMultiChunkLLM()
+    user_id, token = create_user_and_token(client, "ws_stream@example.com")
+
+    deck = Deck(user_id=user_id, title="Stream Deck", source_filename="stream.txt", file_hash="hash_stream")
+    db_session.add(deck)
+    db_session.flush()
+
+    job = Job(user_id=user_id, deck_id=deck.id, status="queued", total_chunks=2)
+    db_session.add(job)
+    db_session.commit()
+
+    with client.websocket_connect(f"/ws/generate/{job.id}?token={token}") as ws:
+        # 1. Snapshot
+        msg_snap = ws.receive_json()
+        assert msg_snap["type"] == "snapshot"
+        assert msg_snap["data"]["status"] == "queued"
+
+        # 2. Trigger worker thread
+        thread = threading.Thread(
+            target=run_card_generation,
+            kwargs={
+                "job_id": job.id,
+                "user_id": user_id,
+                "deck_id": deck.id,
+                "chunks": ["Chunk 1 notes", "Chunk 2 notes"],
+                "llm_client": llm,
+                "delay_between_chunks": 0.05,
+            },
+        )
+        thread.start()
+
+        # 3. Receive chunk 0
+        msg_c0 = ws.receive_json()
+        assert msg_c0["type"] == "chunk_done"
+        assert msg_c0["data"]["chunk_index"] == 0
+        assert msg_c0["data"]["total_chunks"] == 2
+        assert msg_c0["data"]["cards_created"] == 1
+        card0 = msg_c0["data"]["new_cards"][0]
+        assert "distractors" not in card0
+        assert card0["question"] == "Question 1"
+
+        # 4. Receive chunk 1
+        msg_c1 = ws.receive_json()
+        assert msg_c1["type"] == "chunk_done"
+        assert msg_c1["data"]["chunk_index"] == 1
+        assert msg_c1["data"]["cards_created"] == 2
+
+        # 5. Receive ready
+        msg_ready = ws.receive_json()
+        assert msg_ready["type"] == "ready"
+        assert msg_ready["data"]["deck_id"] == deck.id
+        assert msg_ready["data"]["cards_created"] == 2
+
+        thread.join()
+
+
+def test_ws_partial_chunk_failure_continues(client, db_session):
+    """When a chunk produces no valid cards, chunk_failed is broadcast and job still completes."""
+    import threading
+    from app.models.job import Job
+    from app.models.deck import Deck
+    from app.services.generator import run_card_generation
+    from app.llm.base import LLMClient
+
+    class MockPartialFailureLLM(LLMClient):
+        def __init__(self):
+            self.calls = 0
+
+        def generate_cards(self, chunk_text: str) -> list[dict]:
+            self.calls += 1
+            if self.calls == 1:
+                return []  # chunk 0 fails to produce cards
+            return [
+                {
+                    "topic": "Networking",
+                    "question": "What is TCP?",
+                    "answer": "A reliable connection-oriented transport protocol",
+                    "distractors": ["UDP", "IP", "ICMP"],
+                }
+            ]
+
+    llm = MockPartialFailureLLM()
+    user_id, token = create_user_and_token(client, "ws_partial@example.com")
+
+    deck = Deck(user_id=user_id, title="Partial Deck", source_filename="partial.txt", file_hash="hash_partial")
+    db_session.add(deck)
+    db_session.flush()
+
+    job = Job(user_id=user_id, deck_id=deck.id, status="queued", total_chunks=2)
+    db_session.add(job)
+    db_session.commit()
+
+    with client.websocket_connect(f"/ws/generate/{job.id}?token={token}") as ws:
+        msg_snap = ws.receive_json()
+        assert msg_snap["type"] == "snapshot"
+
+        thread = threading.Thread(
+            target=run_card_generation,
+            kwargs={
+                "job_id": job.id,
+                "user_id": user_id,
+                "deck_id": deck.id,
+                "chunks": ["Fail chunk", "Success chunk"],
+                "llm_client": llm,
+                "delay_between_chunks": 0.05,
+            },
+        )
+        thread.start()
+
+        # Chunk 0 failed
+        msg_c0 = ws.receive_json()
+        assert msg_c0["type"] == "chunk_failed"
+        assert msg_c0["data"]["chunk_index"] == 0
+
+        # Chunk 1 done
+        msg_c1 = ws.receive_json()
+        assert msg_c1["type"] == "chunk_done"
+        assert msg_c1["data"]["chunk_index"] == 1
+        assert msg_c1["data"]["cards_created"] == 1
+        assert "distractors" not in msg_c1["data"]["new_cards"][0]
+
+        # Ready
+        msg_ready = ws.receive_json()
+        assert msg_ready["type"] == "ready"
+        assert msg_ready["data"]["cards_created"] == 1
+
+        thread.join()
+
+
+def test_ws_real_background_tasks_upload(client, monkeypatch):
+    """Proves the real BackgroundTasks pipeline execution path broadcasts events."""
+    from app.llm.base import LLMClient
+
+    class MockLLM(LLMClient):
+        def generate_cards(self, chunk_text: str) -> list[dict]:
+            return [
+                {
+                    "topic": "Algorithms",
+                    "question": "What is Dijkstra's algorithm?",
+                    "answer": "Single-source shortest path algorithm on non-negative weighted graphs",
+                    "distractors": ["DFS", "BFS", "Kruskal's"],
+                }
+            ]
+
+    monkeypatch.setattr("app.services.generator.get_llm_client", lambda: MockLLM())
+    _, token = create_user_and_token(client, "ws_bg_tasks@example.com")
+
+    content = ("Shortest path algorithms in computer science graph theory.\n\n" * 8).encode("utf-8")
+    res = client.post(
+        "/api/uploads",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"file": ("dijkstra.txt", content, "text/plain")},
+    )
+    assert res.status_code == 200
+    job_id = res.json()["job_id"]
+    deck_id = res.json()["deck_id"]
+
+    # Connect to the finished job -> proves snapshot + replay
+    with client.websocket_connect(f"/ws/generate/{job_id}?token={token}") as ws:
+        msg1 = ws.receive_json()
+        assert msg1["type"] == "snapshot"
+        assert msg1["data"]["status"] == "ready"
+
+        msg2 = ws.receive_json()
+        assert msg2["type"] == "ready"
+        assert msg2["data"]["deck_id"] == deck_id
+        assert msg2["data"]["cards_created"] >= 1
+
+
+

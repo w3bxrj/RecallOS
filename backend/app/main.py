@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +9,7 @@ from sqlalchemy import update
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.models.job import Job
+from app.ws.publisher import ws_publisher
 from app.core.errors import (
     AppException,
     app_exception_handler,
@@ -20,6 +22,14 @@ from app.core.errors import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
+    # 1. Bind WebSocket publisher to main event loop
+    try:
+        loop = asyncio.get_running_loop()
+        ws_publisher.set_event_loop(loop)
+    except Exception:
+        pass
+
+    # 2. Recover stranded jobs on startup
     try:
         with SessionLocal() as db:
             db.execute(

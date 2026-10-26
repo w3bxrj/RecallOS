@@ -15,6 +15,7 @@ from app.models.card_state import CardState
 from app.services.card_validator import validate_card
 from app.services.events import JobEventPublisher, default_event_publisher
 from app.services.extractor import chunk_text
+from app.ws.publisher import ws_publisher
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,11 @@ logger = logging.getLogger(__name__)
 def get_llm_client() -> LLMClient:
     """Factory function for LLM client (can be overridden in tests)."""
     return GeminiLLMClient()
+
+
+def get_event_publisher() -> JobEventPublisher:
+    """Factory function for event publisher (defaults to WebSocket publisher in production)."""
+    return ws_publisher
 
 
 def run_card_generation(
@@ -40,7 +46,7 @@ def run_card_generation(
     if llm_client is None:
         llm_client = get_llm_client()
     if publisher is None:
-        publisher = default_event_publisher
+        publisher = get_event_publisher()
 
     db = SessionLocal()
     today = today_ist()
@@ -174,7 +180,7 @@ def process_upload_pipeline(
     if llm_client is None:
         llm_client = get_llm_client()
     if publisher is None:
-        publisher = default_event_publisher
+        publisher = get_event_publisher()
 
     db = SessionLocal()
     try:
