@@ -23,7 +23,11 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_
 
 @pytest.fixture(autouse=True)
 def setup_database(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
-    """Creates all database tables before each test and drops them afterwards."""
+    """Creates all database tables and resets state before each test and drops them afterwards."""
+    from app.core.rate_limit import auth_ip_limiter, upload_user_limiter
+    auth_ip_limiter.limiter.reset()
+    upload_user_limiter.limiter.reset()
+
     Base.metadata.create_all(bind=test_engine)
     monkeypatch.setattr("app.core.db.SessionLocal", TestingSessionLocal)
     monkeypatch.setattr("app.services.generator.SessionLocal", TestingSessionLocal)
@@ -31,6 +35,9 @@ def setup_database(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, Non
     monkeypatch.setattr("app.routers.ws.SessionLocal", TestingSessionLocal, raising=False)
     yield
     Base.metadata.drop_all(bind=test_engine)
+    auth_ip_limiter.limiter.reset()
+    upload_user_limiter.limiter.reset()
+
 
 
 @pytest.fixture
