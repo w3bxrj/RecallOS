@@ -103,3 +103,16 @@ This log records architectural decisions, trade-offs, and rationale for RecallOS
   4. **Health Check Split for Neon Idle Sleep:** `/health` is a pure in-memory endpoint with no database query, designated for external uptime pinging (e.g., UptimeRobot every 5 minutes). A separate `/health/db` endpoint executes `SELECT 1` for manual diagnostics. This prevents periodic health pings from indefinitely keeping the Neon compute instance awake.
   5. **Production Invariants Guard:** If `ENV=production`, the application refuses to boot if `DATABASE_URL` is empty or points to SQLite, if `JWT_SECRET` is the default dev secret or shorter than 32 characters, or if `ALLOWED_ORIGINS` contains wildcards.
 
+## ADR-015: Frontend Token Storage in localStorage, SPA Routing & Cold Start Wake-Up UX
+- **Date:** 2026-10-26
+- **Status:** Accepted
+- **Context:** The frontend is a Single Page Application (SPA) hosted on Vercel calling an independent FastAPI backend on Render. Authentication uses JWT tokens for both REST requests and WebSocket connections (`?token=...`). Render's free tier spins down on inactivity, resulting in 30-60 second latency on cold start requests.
+- **Decision:**
+  1. **Token Storage in localStorage:** Store the JWT token in `localStorage` under `recallos_token`.
+     - *Trade-off / Security Analysis:* `localStorage` is accessible to JavaScript running within the application's origin, making it theoretically vulnerable to Cross-Site Scripting (XSS) if untrusted scripts run. However, an `httpOnly` cookie strategy across cross-site domains (Vercel at `*.vercel.app` and Render at `*.onrender.com`) introduces third-party cookie blocking, complex SameSite/Secure policies, and cannot be accessed by standard browser `WebSocket` APIs to attach query parameters. Given the 2-day student project scope, zero third-party dependencies with user-rendered script injection, and cross-origin WebSocket requirements, `localStorage` provides reliable, predictable authentication. Tokens are never logged to the browser console.
+  2. **Render Cold-Start UX & In-Flight Tracking:**
+     - The HTTP client tracks in-flight request count and arms a 4-second timer per request. If any request exceeds 4 seconds, a global sticky wake-up banner appears: *"Server is waking up, this can take up to a minute..."*.
+     - The client timeout is configured to 90 seconds (preventing early client abortion while Render spins up).
+     - For idempotent `GET` requests, the client automatically retries up to 3 times with 3-second delays when encountering network disconnects or 502/503 bad gateway responses from the booting reverse proxy. `POST/PATCH/DELETE` requests are never automatically retried, except `POST /api/reviews` which carries a client-generated UUID `request_id` for backend idempotency.
+  3. **Vercel SPA Rewrites:** `frontend/vercel.json` configures a global rewrite `{"source": "/(.*)", "destination": "/index.html"}`. Because Vercel serves static assets prior to applying route rewrites, this guarantees deep-link navigation (e.g., direct refreshes on `/review` or `/decks`) resolves correctly to the SPA router.
+

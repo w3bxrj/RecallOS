@@ -132,3 +132,36 @@ To populate initial cards, deck, and historical reviews into the remote Neon dat
 ### Single-Worker Architecture Invariant
 - The start command runs uvicorn with exactly **one worker** (no `--workers` flag).
 - **Rationale:** The in-memory IP rate limiter (`InMemoryRateLimiter`), WebSocket room manager (`ConnectionManager`), and Quiz Duel session state are held in-memory. Running multiple worker processes would partition this state and break WebSocket synchronization.
+
+---
+
+## 8. Frontend Deployment Guide (Vercel)
+
+Deploy the React + Vite frontend to [Vercel](https://vercel.com/):
+
+### Step 1: Connect GitHub Repo to Vercel
+1. Log in to your Vercel Dashboard and click **Add New > Project**.
+2. Select your `recallos` GitHub repository.
+3. Configure project settings:
+   - **Framework Preset:** `Vite`
+   - **Root Directory:** `frontend` (click "Edit" and choose the `frontend` folder)
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+
+### Step 2: Set Environment Variables on Vercel
+Under **Environment Variables**, add the following:
+
+| Variable Name | Value | Description |
+|---|---|---|
+| `VITE_API_URL` | `https://<your-render-backend>.onrender.com` | HTTPS URL of your deployed Render backend (no trailing slash). |
+| `VITE_WS_URL` | `wss://<your-render-backend>.onrender.com` | WSS URL of your deployed Render backend (no trailing slash). |
+| `VITE_ENABLE_DUEL` | `false` | Set to `false` for Phase 6 (hides all duel navigation and routes). |
+
+### Step 3: Link Vercel Domain to Render CORS
+After deployment completes, Vercel will provide your production URL (e.g., `https://recallos.vercel.app`).
+1. Go to your **Render Dashboard > recallos-backend > Environment**.
+2. Update `ALLOWED_ORIGINS` to include your exact Vercel URL without trailing slash:
+   ```text
+   ALLOWED_ORIGINS=http://localhost:5173,https://recallos.vercel.app
+   ```
+3. Save and redeploy the backend so the CORS middleware and WebSocket origin validator permit requests from your live Vercel application.
