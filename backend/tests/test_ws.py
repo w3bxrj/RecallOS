@@ -64,3 +64,89 @@ async def test_connection_manager_broadcast_resilience():
     # bad_ws removed from room
     assert bad_ws not in manager._rooms.get("job:3", set())
     assert good_ws in manager._rooms["job:3"]
+
+
+@pytest.mark.anyio
+async def test_publisher_sanitizes_distractors():
+    from app.ws.publisher import WebSocketJobEventPublisher
+
+    manager = ConnectionManager()
+    ws = AsyncMock()
+    await manager.connect("job:10", ws)
+
+    loop = asyncio.get_running_loop()
+    publisher = WebSocketJobEventPublisher(manager=manager)
+    publisher.set_event_loop(loop)
+
+    raw_cards = [
+        {
+            "id": 1,
+            "topic": "OS",
+            "question": "What is a kernel?",
+            "answer": "Core of the OS",
+            "distractors": ["Hardware", "A browser", "A compiler"],
+        }
+    ]
+
+    publisher.chunk_done(
+        job_id=10,
+        chunk_index=0,
+        total_chunks=1,
+        new_cards=raw_cards,
+        cards_created=1,
+    )
+
+    # Let the scheduled coroutine run on loop
+    await asyncio.sleep(0.05)
+
+    ws.send_json.assert_awaited_once()
+    call_arg = ws.send_json.call_args[0][0]
+    assert call_arg["type"] == "chunk_done"
+    sent_card = call_arg["data"]["new_cards"][0]
+    assert "distractors" not in sent_card
+    assert sent_card["topic"] == "OS"
+    assert sent_card["question"] == "What is a kernel?"
+    assert sent_card["answer"] == "Core of the OS"
+
+
+@pytest.mark.anyio
+async def test_publisher_no_loop_graceful_noop():
+    from app.ws.publisher import WebSocketJobEventPublisher
+
+    publisher = WebSocketJobEventPublisher()
+    # No loop set; should execute without error
+    publisher.chunk_done(1, 0, 1, [], 0)
+    publisher.chunk_failed(1, 0, "error")
+    publisher.ready(1, 1, 1)
+    publisher.failed(1, "failed")
+
+
+@pytest.mark.anyio
+async def test_publisher_thread_safe_cross_thread():
+    from app.ws.publisher import WebSocketJobEventPublisher
+    import threading
+
+    manager = ConnectionManager()
+    ws = AsyncMock()
+    await manager.connect("job:99", ws)
+
+    loop = asyncio.get_running_loop()
+    publisher = WebSocketJobEventPublisher(manager=manager)
+    publisher.set_event_loop(loop)
+
+    def worker_thread():
+        publisher.chunk_failed(99, 1, "test error from thread")
+
+    thread = threading.Thread(target=worker_thread)
+    thread.start()
+    thread.join()
+
+    await asyncio.sleep(0.05)
+    ws.send_json.assert_awaited_once_with({
+        "type": "chunk_failed",
+        "data": {
+            "chunk_index": 1,
+            "reason": "test error from thread",
+        },
+    })
+
