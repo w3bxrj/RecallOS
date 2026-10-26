@@ -16,7 +16,6 @@ class QueueCardItem(BaseModel):
     topic: str
     question: str
     answer: str
-    distractors: List[str]
     ease_factor: float
     interval_days: int
     repetitions: int

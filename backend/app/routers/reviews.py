@@ -130,7 +130,6 @@ def get_review_queue(
                 topic=card.topic,
                 question=card.question,
                 answer=card.answer,
-                distractors=card.distractors,
                 ease_factor=state.ease_factor,
                 interval_days=state.interval_days,
                 repetitions=state.repetitions,

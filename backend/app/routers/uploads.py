@@ -129,6 +129,7 @@ async def upload_document(
             status_code=409,
             code="JOB_IN_PROGRESS",
             message="You already have a document generation job in progress.",
+            details={"job_id": active_job.id},
         )
 
     # Create Deck and Job

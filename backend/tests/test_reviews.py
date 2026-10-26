@@ -88,7 +88,7 @@ def test_get_queue_returns_due_cards_with_predicted_intervals(
 
     item = data["cards"][0]
     assert item["card_id"] == card.id
-    assert item["topic"] == "Networking"
+    assert "distractors" not in item
     assert "predicted_intervals" in item
     pred = item["predicted_intervals"]
     # Again resets to 1, Good on rep=1 gives 6

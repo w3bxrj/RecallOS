@@ -246,7 +246,9 @@ def test_second_concurrent_upload_returns_job_in_progress(
         files={"file": ("new_subject.txt", content, "text/plain")},
     )
     assert res.status_code == 409
-    assert res.json()["error"]["code"] == "JOB_IN_PROGRESS"
+    err = res.json()["error"]
+    assert err["code"] == "JOB_IN_PROGRESS"
+    assert err["job_id"] == job.id
 
 
 def test_job_and_deck_ownership_check(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
