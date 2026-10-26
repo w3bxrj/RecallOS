@@ -19,15 +19,26 @@ def today_ist() -> date:
     return now_ist().date()
 
 
+def ist_midnight(d: date) -> datetime:
+    """Returns midnight (00:00:00) of a given date in Asia/Kolkata timezone."""
+    return datetime.combine(d, datetime.min.time(), tzinfo=IST_TIMEZONE)
+
+
 def to_ist_date(val: Optional[Union[datetime, date]]) -> Optional[date]:
-    """Converts a datetime or date object to an Asia/Kolkata date."""
+    """Converts a datetime or date object to an Asia/Kolkata date.
+
+    Handles:
+    - None -> None
+    - date -> date
+    - tz-aware datetime -> converts to Asia/Kolkata timezone and returns its date
+    - naive datetime (from SQLite where now_ist was stored as IST wall-time) -> returns its date directly
+    """
     if val is None:
         return None
     if isinstance(val, datetime):
-        if val.tzinfo is None:
-            # Assume UTC if naive, convert to IST
-            val = val.replace(tzinfo=timezone.utc).astimezone(IST_TIMEZONE)
-        else:
-            val = val.astimezone(IST_TIMEZONE)
+        if val.tzinfo is not None:
+            return val.astimezone(IST_TIMEZONE).date()
+        # In SQLite, now_ist() is stored as naive IST wall clock time; its date is already IST
         return val.date()
     return val
+
