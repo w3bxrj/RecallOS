@@ -14,14 +14,17 @@ sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), ".."
 
 from sqlalchemy import select
 from app.core.config import settings
-from app.core.db import SessionLocal
-from app.core.time import today_ist, now_ist
+from app.core.db import SessionLocal, engine
+from app.core.time import today_ist, now_ist, ist_midnight
 from app.core.security import hash_password
+from app.models.base import Base
 from app.models.user import User
 from app.models.deck import Deck
 from app.models.card import Card
 from app.models.card_state import CardState
 from app.models.review import Review
+
+
 
 
 SAMPLE_CARDS: List[Dict[str, Any]] = [
@@ -347,6 +350,7 @@ def seed_database() -> None:
     now = now_ist()
 
     print(f"Connecting to database (Current IST Date: {today})...")
+    Base.metadata.create_all(bind=engine)
 
     try:
         # 1. Create or fetch test user
@@ -441,9 +445,107 @@ def seed_database() -> None:
         else:
             print("Cards already exist for this deck. Skipping card insertion.")
 
+        # 4. Seed ~80 historical reviews across past 14 days
+        existing_reviews_count = db.scalar(
+            select(Review).where(Review.user_id == user.id)
+        )
+        if not existing_reviews_count:
+            print("Seeding ~80 historical reviews over past 14 days...")
+            all_cards = db.scalars(
+                select(Card).where(Card.deck_id == deck.id)
+            ).all()
+
+            cards_by_topic: Dict[str, List[Card]] = {}
+            for c in all_cards:
+                cards_by_topic.setdefault(c.topic, []).append(c)
+
+            latest_card_reviews: Dict[int, tuple] = {}
+
+            # Review distribution plan: 14 days, total 80 reviews
+            # Days 0 to 8 guarantee at least 9 consecutive review days ending today
+            review_plan = [
+                (13, 4),
+                (12, 4),
+                (11, 4),
+                (10, 4),
+                (9, 5),
+                (8, 6),
+                (7, 6),
+                (6, 6),
+                (5, 7),
+                (4, 6),
+                (3, 7),
+                (2, 6),
+                (1, 7),
+                (0, 8),  # today
+            ]
+            total_seeded_reviews = 0
+
+            # "Operating Systems": weak topic (accuracy < 60%, >= 5 reviews)
+            os_ratings = [1, 2, 1, 2, 3, 1, 2, 1, 1, 2, 2, 1, 3, 1, 2, 1, 2, 1, 2, 3]
+            os_idx = 0
+
+            # Other 3 topics: strong (accuracy ~85-90%)
+            strong_ratings = [3, 4, 4, 3, 4, 4, 3, 4, 4, 3, 4, 4, 2, 4, 3, 4, 4]
+            strong_idx = 0
+
+            for day_offset, num_reviews in review_plan:
+                rev_date = today - timedelta(days=day_offset)
+                base_time = ist_midnight(rev_date)
+
+                for rev_i in range(num_reviews):
+                    # Operating Systems gets ~25% of the reviews
+                    if rev_i % 4 == 1 and "Operating Systems" in cards_by_topic:
+                        topic = "Operating Systems"
+                        card = cards_by_topic[topic][rev_i % len(cards_by_topic[topic])]
+                        rating = os_ratings[os_idx % len(os_ratings)]
+                        os_idx += 1
+                    else:
+                        other_topics = [t for t in cards_by_topic if t != "Operating Systems"]
+                        topic = other_topics[rev_i % len(other_topics)]
+                        card = cards_by_topic[topic][rev_i % len(cards_by_topic[topic])]
+                        rating = strong_ratings[strong_idx % len(strong_ratings)]
+                        strong_idx += 1
+
+                    rev_dt = base_time + timedelta(hours=9 + (rev_i * 2), minutes=(rev_i * 7) % 60)
+                    prev_int = 1 if rating <= 2 else 3
+                    new_int = 1 if rating <= 2 else 6
+
+                    review = Review(
+                        user_id=user.id,
+                        card_id=card.id,
+                        rating=rating,
+                        reviewed_at=rev_dt,
+                        prev_interval=prev_int,
+                        new_interval=new_int,
+                    )
+                    db.add(review)
+                    total_seeded_reviews += 1
+
+                    if card.id not in latest_card_reviews or rev_dt > latest_card_reviews[card.id][0]:
+                        latest_card_reviews[card.id] = (rev_dt, new_int)
+
+            # Update CardStates with last_reviewed_at and interval_days
+            card_states = db.scalars(
+                select(CardState).where(CardState.user_id == user.id)
+            ).all()
+            for cs in card_states:
+                if cs.card_id in latest_card_reviews:
+                    last_dt, new_interval = latest_card_reviews[cs.card_id]
+                    cs.last_reviewed_at = last_dt
+                    cs.interval_days = new_interval
+
+            db.commit()
+            print(f"Successfully seeded {total_seeded_reviews} historical reviews across 14 days.")
+            print("Operating Systems seeded as weak topic (< 60% accuracy, >= 5 reviews).")
+            print("Guaranteed at least 9 consecutive review days ending today.")
+        else:
+            print("Historical reviews already exist. Skipping review seeding.")
+
         print("Database seed completed successfully!")
     finally:
         db.close()
+
 
 
 if __name__ == "__main__":
