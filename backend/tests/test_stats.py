@@ -426,3 +426,146 @@ def test_api_stats_forecast(client: TestClient, db_session: Session):
     for idx in [2, 3, 4, 6, 7, 29]:
         assert forecast[idx]["due_count"] == 0
 
+
+def test_api_stats_user_isolation(client: TestClient, db_session: Session):
+    """Test user isolation across all stats endpoints:
+    User A and User B must never see each other's metrics, review counts,
+    or topic ratings, even for cards sharing the same topic name.
+    """
+    today = today_ist()
+    user_a_id, token_a = _create_user_token(client, "isolation_a@example.com")
+    user_b_id, token_b = _create_user_token(client, "isolation_b@example.com")
+
+    # User A creates deck and card in topic "Networks"
+    deck_a = Deck(user_id=user_a_id, title="Deck A", source_filename="a.txt", file_hash="hash_iso_a")
+    db_session.add(deck_a)
+    db_session.flush()
+
+    card_a = Card(deck_id=deck_a.id, topic="Networks", question="Q_A", answer="A_A", distractors=["D1", "D2", "D3"])
+    db_session.add(card_a)
+    db_session.flush()
+
+    state_a = CardState(
+        card_id=card_a.id, user_id=user_a_id, ease_factor=2.5, interval_days=1, repetitions=1, due_date=today, lapses=0
+    )
+    db_session.add(state_a)
+
+    # User A reviews with rating 4 (100% good)
+    db_session.add(Review(
+        user_id=user_a_id, card_id=card_a.id, rating=4, reviewed_at=now_ist(), prev_interval=1, new_interval=2
+    ))
+
+    # User B creates deck and card in same topic "Networks"
+    deck_b = Deck(user_id=user_b_id, title="Deck B", source_filename="b.txt", file_hash="hash_iso_b")
+    db_session.add(deck_b)
+    db_session.flush()
+
+    card_b = Card(deck_id=deck_b.id, topic="Networks", question="Q_B", answer="A_B", distractors=["D1", "D2", "D3"])
+    db_session.add(card_b)
+    db_session.flush()
+
+    # User B has 3 cards due tomorrow
+    state_b = CardState(
+        card_id=card_b.id, user_id=user_b_id, ease_factor=2.5, interval_days=1, repetitions=1, due_date=today + timedelta(days=1), lapses=0
+    )
+    db_session.add(state_b)
+
+    # User B reviews with rating 1 (0% good) across 5 reviews
+    for _ in range(5):
+        db_session.add(Review(
+            user_id=user_b_id, card_id=card_b.id, rating=1, reviewed_at=now_ist(), prev_interval=1, new_interval=1
+        ))
+
+    db_session.commit()
+
+    # Check User A:
+    res_a_ov = client.get("/api/stats/overview", headers={"Authorization": f"Bearer {token_a}"})
+    data_a_ov = res_a_ov.json()
+    assert data_a_ov["total_cards"] == 1
+    assert data_a_ov["due_today"] == 1
+    assert data_a_ov["streak_days"] == 1
+
+    res_a_top = client.get("/api/stats/topics", headers={"Authorization": f"Bearer {token_a}"})
+    data_a_top = res_a_top.json()
+    assert len(data_a_top) == 1
+    assert data_a_top[0]["topic"] == "Networks"
+    assert data_a_top[0]["reviews_count"] == 1
+    assert data_a_top[0]["accuracy"] == 100.0
+    assert data_a_top[0]["is_weak"] is False
+
+    res_a_fc = client.get("/api/stats/forecast", headers={"Authorization": f"Bearer {token_a}"})
+    data_a_fc = res_a_fc.json()["forecast"]
+    assert data_a_fc[0]["due_count"] == 1  # User A has 1 card today
+    assert data_a_fc[1]["due_count"] == 0  # User A has 0 cards tomorrow
+
+    # Check User B:
+    res_b_ov = client.get("/api/stats/overview", headers={"Authorization": f"Bearer {token_b}"})
+    data_b_ov = res_b_ov.json()
+    assert data_b_ov["total_cards"] == 1
+    assert data_b_ov["due_today"] == 0  # User B's card is due tomorrow
+    assert data_b_ov["streak_days"] == 1
+
+    res_b_top = client.get("/api/stats/topics", headers={"Authorization": f"Bearer {token_b}"})
+    data_b_top = res_b_top.json()
+    assert len(data_b_top) == 1
+    assert data_b_top[0]["topic"] == "Networks"
+    assert data_b_top[0]["reviews_count"] == 5
+    assert data_b_top[0]["accuracy"] == 0.0
+    assert data_b_top[0]["is_weak"] is True  # 5 reviews and 0% accuracy
+
+    res_b_fc = client.get("/api/stats/forecast", headers={"Authorization": f"Bearer {token_b}"})
+    data_b_fc = res_b_fc.json()["forecast"]
+    assert data_b_fc[0]["due_count"] == 0  # User B has 0 cards today
+    assert data_b_fc[1]["due_count"] == 1  # User B has 1 card tomorrow
+
+
+def test_api_stats_30_day_midnight_boundary(client: TestClient, db_session: Session):
+    """Verify that a review within the last 30 IST days at 09:00 IST is included
+    in the 30-day topics window because the window starts at IST midnight of the 30th day.
+    """
+    today = today_ist()
+    user_id, token = _create_user_token(client, "boundary_test@example.com")
+
+    deck = Deck(user_id=user_id, title="Boundary Deck", source_filename="b.txt", file_hash="hash_bnd")
+    db_session.add(deck)
+    db_session.flush()
+
+    card = Card(deck_id=deck.id, topic="Boundary Topic", question="QB", answer="AB", distractors=["D1", "D2", "D3"])
+    db_session.add(card)
+    db_session.flush()
+
+    # Review placed at exactly today - 30 days at 09:00 IST
+    start_date = today - timedelta(days=30)
+    review_dt = datetime.combine(start_date, datetime.min.time(), tzinfo=IST_TIMEZONE) + timedelta(hours=9)
+
+    db_session.add(Review(
+        user_id=user_id,
+        card_id=card.id,
+        rating=4,
+        reviewed_at=review_dt,
+        prev_interval=1,
+        new_interval=2,
+    ))
+    db_session.commit()
+
+    res = client.get("/api/stats/topics", headers={"Authorization": f"Bearer {token}"})
+    assert res.status_code == 200
+    topics = res.json()
+    assert len(topics) == 1
+    assert topics[0]["topic"] == "Boundary Topic"
+    assert topics[0]["reviews_count"] == 1
+    assert topics[0]["accuracy"] == 100.0
+
+
+def test_api_stats_unauthenticated(client: TestClient):
+    """Stats endpoints must require authentication and reject unauthenticated requests with 401."""
+    res_ov = client.get("/api/stats/overview")
+    assert res_ov.status_code == 401
+
+    res_top = client.get("/api/stats/topics")
+    assert res_top.status_code == 401
+
+    res_fc = client.get("/api/stats/forecast")
+    assert res_fc.status_code == 401
+
+
