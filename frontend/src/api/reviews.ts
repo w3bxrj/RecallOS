@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { QueueResponse, ReviewSubmitRequest, ReviewSubmitResponse } from './types';
+import type { QueueResponse, ReviewSubmitRequest, ReviewSubmitResponse } from './types';
 
 export async function apiGetReviewQueue(): Promise<QueueResponse> {
   return apiClient<QueueResponse>('/api/reviews/queue');

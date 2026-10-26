@@ -1,6 +1,7 @@
 # Environments & Secrets
 .env
 *.env
+.env.*
 !.env.example
 
 # Python

@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { Card, DeckListItem } from './types';
+import type { Card, DeckListItem } from './types';
 
 export async function apiListDecks(): Promise<DeckListItem[]> {
   return apiClient<DeckListItem[]>('/api/decks');

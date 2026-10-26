@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { apiGetMe, apiLogin, apiRegister, LoginPayload, RegisterPayload } from '../api/auth';
+import { apiGetMe, apiLogin, apiRegister } from '../api/auth';
+import type { LoginPayload, RegisterPayload } from '../api/auth';
 import { TOKEN_STORAGE_KEY } from '../api/client';
-import { User } from '../api/types';
+import type { User } from '../api/types';
 
 interface AuthContextType {
   user: User | null;

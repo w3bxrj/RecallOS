@@ -1,6 +1,6 @@
-// Typed HTTP client with auth injection, cold-start handling, and error normalization
 import { appConfig } from './config';
-import { ApiClientError, ApiErrorPayload } from './types';
+import { ApiClientError } from './types';
+import type { ApiErrorPayload } from './types';
 
 export const TOKEN_STORAGE_KEY = 'recallos_token';
 

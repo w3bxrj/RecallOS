@@ -1,8 +1,5 @@
 // Config for API and WebSocket URLs
 
-const rawApiUrl = import.meta.env.VITE_API_URL?.trim();
-const rawWsUrl = import.meta.env.VITE_WS_URL?.trim();
-
 export interface ConfigStatus {
   isValid: boolean;
   errorMessage?: string;
@@ -11,9 +8,10 @@ export interface ConfigStatus {
 }
 
 export function getAppConfig(): ConfigStatus {
-  const isProd = import.meta.env.PROD;
+  if (import.meta.env.PROD) {
+    const rawApiUrl = import.meta.env.VITE_API_URL?.trim();
+    const rawWsUrl = import.meta.env.VITE_WS_URL?.trim();
 
-  if (isProd) {
     if (!rawApiUrl || !rawWsUrl) {
       return {
         isValid: false,
@@ -48,11 +46,15 @@ export function getAppConfig(): ConfigStatus {
     };
   }
 
-  // Development environment
+  // Development environment only
+  const devHost = 'localhost:8000';
+  const devApi = import.meta.env.VITE_API_URL?.trim() || `http://${devHost}`;
+  const devWs = import.meta.env.VITE_WS_URL?.trim() || `ws://${devHost}`;
+
   return {
     isValid: true,
-    apiUrl: (rawApiUrl || 'http://localhost:8000').replace(/\/+$/, ''),
-    wsUrl: (rawWsUrl || 'ws://localhost:8000').replace(/\/+$/, ''),
+    apiUrl: devApi.replace(/\/+$/, ''),
+    wsUrl: devWs.replace(/\/+$/, ''),
   };
 }
 

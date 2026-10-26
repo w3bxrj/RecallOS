@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { JobResponse, UploadResponse } from './types';
+import type { JobResponse, UploadResponse } from './types';
 
 export async function apiUploadDocument(file: File, title?: string): Promise<UploadResponse> {
   const formData = new FormData();

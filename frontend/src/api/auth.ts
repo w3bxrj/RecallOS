@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { TokenResponse, User } from './types';
+import type { TokenResponse, User } from './types';
 
 export interface RegisterPayload {
   email: string;

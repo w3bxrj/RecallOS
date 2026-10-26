@@ -12,7 +12,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { apiListDecks, apiGetDeckCards, apiDeleteDeck } from '../api/decks';
-import { Card, DeckListItem } from '../api/types';
+import type { Card, DeckListItem } from '../api/types';
 import { useToast } from '../context/ToastContext';
 import { Skeleton } from '../components/common/Skeleton';
 import { EmptyState } from '../components/common/EmptyState';

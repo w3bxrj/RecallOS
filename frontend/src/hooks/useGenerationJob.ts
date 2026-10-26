@@ -3,7 +3,7 @@ import { appConfig } from '../api/config';
 import { TOKEN_STORAGE_KEY } from '../api/client';
 import { apiGetJobStatus } from '../api/upload';
 import { apiGetDeckCards } from '../api/decks';
-import { Card, JobStatus } from '../api/types';
+import type { Card, JobStatus } from '../api/types';
 
 export interface GenerationState {
   status: JobStatus | 'connecting' | 'idle';

@@ -12,7 +12,8 @@ import {
   Eye,
 } from 'lucide-react';
 import { apiGetReviewQueue, apiSubmitReview } from '../api/reviews';
-import { QueueCardItem, ApiClientError } from '../api/types';
+import { ApiClientError } from '../api/types';
+import type { QueueCardItem } from '../api/types';
 import { useToast } from '../context/ToastContext';
 import { Spinner } from '../components/common/Spinner';
 import { Skeleton } from '../components/common/Skeleton';
