@@ -28,6 +28,7 @@ def setup_database(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, Non
     monkeypatch.setattr("app.core.db.SessionLocal", TestingSessionLocal)
     monkeypatch.setattr("app.services.generator.SessionLocal", TestingSessionLocal)
     monkeypatch.setattr("app.main.SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr("app.routers.ws.SessionLocal", TestingSessionLocal, raising=False)
     yield
     Base.metadata.drop_all(bind=test_engine)
 
