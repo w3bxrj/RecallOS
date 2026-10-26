@@ -64,7 +64,7 @@ if origins:
         allow_headers=["*"],
     )
 
-from app.routers import auth, users, reviews, uploads, decks, ws
+from app.routers import auth, users, reviews, uploads, decks, ws, stats
 
 app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -77,7 +77,9 @@ app.include_router(users.router, prefix="/api")
 app.include_router(reviews.router, prefix="/api")
 app.include_router(uploads.router, prefix="/api")
 app.include_router(decks.router, prefix="/api")
+app.include_router(stats.router, prefix="/api")
 app.include_router(ws.router)
+
 
 
 
