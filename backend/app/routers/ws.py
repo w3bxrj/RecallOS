@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 import app.core.db as db_core
+from app.core.config import settings
 from app.core.security import decode_access_token
 from app.models.user import User
 from app.models.job import Job
@@ -17,18 +18,30 @@ router = APIRouter(tags=["WebSocket"])
 async def ws_generate(websocket: WebSocket, job_id: int) -> None:
     """Live generation WebSocket endpoint.
 
+    - Validates Origin against ALLOWED_ORIGINS (closes with 4403 on mismatch).
     - Authenticates via ?token= query param BEFORE accept (closes with 4401 on failure).
     - Checks job ownership with a short DB session (closes with 4404 on failure).
     - Registers socket into room FIRST, then delivers snapshot.
     - Replays terminal event (ready or failed) if job already finished.
     - Sends keepalive ping every 25s and handles client disconnects cleanly.
     """
+    # 0. Validate Origin header against allowed_origins_list
+    origin = websocket.headers.get("origin")
+    allowed_origins = settings.allowed_origins_list
+    if origin and allowed_origins:
+        cleaned_origin = origin.strip().rstrip("/")
+        if cleaned_origin not in allowed_origins and "*" not in allowed_origins:
+            logger.warning("WS connection rejected: origin '%s' not in allowed origins", origin)
+            await websocket.close(code=4403)
+            return
+
     # 1. Authenticate with JWT from ?token= BEFORE accepting
     token = websocket.query_params.get("token")
     if not token:
         logger.debug("WS connection rejected: missing token query param")
         await websocket.close(code=4401)
         return
+
 
     try:
         user_id = decode_access_token(token)

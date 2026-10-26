@@ -1,10 +1,11 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from sqlalchemy import update
+from sqlalchemy import update, text
+
 
 from app.core.config import settings
 from app.core.db import SessionLocal
@@ -53,15 +54,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS Middleware
+# CORS Middleware: allow only configured origins with credentials off
 origins = settings.allowed_origins_list
 if origins:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
 from app.routers import auth, users, reviews, uploads, decks, ws, stats
@@ -81,10 +82,24 @@ app.include_router(stats.router, prefix="/api")
 app.include_router(ws.router)
 
 
-
-
+@app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])
 async def health_check() -> dict:
-    """Service health check endpoint."""
+    """Uptime health check endpoint (no DB call, for UptimeRobot / Render ping)."""
     return {"status": "ok"}
+
+
+@app.get("/health/db", tags=["Health"])
+def health_check_db() -> dict:
+    """Database connectivity health check (executes SELECT 1 for manual checks)."""
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+        return {"status": "ok", "db": "connected"}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unreachable",
+        ) from exc
+
 
