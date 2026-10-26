@@ -62,5 +62,25 @@ This log records architectural decisions, trade-offs, and rationale for RecallOS
 - **Context:** Files are deduplicated per user by SHA-256 hash. If an earlier upload failed during LLM extraction leaving an empty deck (0 cards), subsequent uploads of the exact same document would otherwise be rejected with a 409 duplicate conflict, blocking the user from ever generating flashcards from that document.
 - **Decision:** During `POST /api/uploads`, if an existing deck matches `(user_id, file_hash)` and has 0 cards (from a failed generation attempt), the system deletes the empty deck and allows the new upload and generation job to proceed normally.
 
+## ADR-011: Database as Source of Truth & Live WebSocket Generation Protocol
+- **Date:** 2026-10-26
+- **Status:** Accepted
+- **Context:** Real-time generation streaming must be resilient to client disconnects, page reloads, and network dropouts, without tying background task completion to client connectivity or exhausting Neon connection pool limits.
+- **Decision:**
+  1. **DB as Single Source of Truth:** Generation jobs proceed and update the database independently of whether any WebSocket is connected. A frontend that reconnects or misses messages can always recover complete state via `GET /api/jobs/{id}` and `GET /api/decks/{id}/cards`.
+  2. **Short DB Sessions:** The WebSocket endpoint `/ws/generate/{job_id}` opens a short-lived `SessionLocal()`, loads the user and job, builds the snapshot, and closes the session before entering the receive loop. Database sessions are never held open across the socket's lifetime to avoid depleting database connection pools.
+  3. **Register-Before-Snapshot Ordering:** The socket is registered in the room (`connection_manager.connect`) *before* the snapshot is transmitted. This eliminates race conditions where live events generated immediately after connection could be dropped.
+  4. **Frontend State Invariant:** Because a live event can arrive just before the snapshot, the frontend must adhere to the rule: "a snapshot must never move the UI backwards (ignore it if a terminal ready/failed event was already received)". Terminal events (ready/failed) delivered via both live broadcast and replay must be handled idempotently.
+
+## ADR-012: Cross-Thread Broadcasting, Send Concurrency Safety & Query Token Privacy
+- **Date:** 2026-10-26
+- **Status:** Accepted
+- **Context:** Background generation tasks run in threadpool workers, while WebSocket I/O requires the main asyncio event loop. Concurrent writes from keepalive pings and broadcasts on the same socket can interleave frames. Furthermore, standard browser WebSocket APIs do not support custom HTTP headers on connection.
+- **Decision:**
+  1. **Thread-Safe Scheduling:** The FastAPI `lifespan` startup captures the main asyncio event loop via `asyncio.get_running_loop()`. `WebSocketJobEventPublisher` schedules broadcasts from worker threads onto the loop using `asyncio.run_coroutine_threadsafe()`. Sockets and publisher calls never block worker threads.
+  2. **Per-Socket Lock & Timeout:** `ConnectionManager` maintains a dedicated `asyncio.Lock` per socket and bounds every transmission with `asyncio.wait_for(..., timeout=5)`. Stalled or disconnected sockets are automatically pruned without delaying or failing broadcasts to remaining participants.
+  3. **Query Parameter Token Privacy:** Because browser WebSockets cannot send `Authorization: Bearer` headers, tokens are passed via `?token=...`. To prevent credentials leaking in server access logs or terminal logs, the uvicorn access logger and application loggers must never print unmasked query strings containing authentication tokens.
+
+
 
 
