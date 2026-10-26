@@ -9,6 +9,7 @@ import pypdf
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.errors import AppException
+from app.core.rate_limit import upload_user_limiter
 from app.routers.deps import get_current_user
 from app.models.user import User
 from app.models.deck import Deck
@@ -20,7 +21,11 @@ from app.services.generator import process_upload_pipeline
 router = APIRouter(tags=["Uploads & Jobs"])
 
 
-@router.post("/uploads", response_model=UploadResponse)
+@router.post(
+    "/uploads",
+    response_model=UploadResponse,
+    dependencies=[Depends(upload_user_limiter)],
+)
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -28,6 +33,7 @@ async def upload_document(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> UploadResponse:
+
     """Uploads a document (PDF or TXT) and enqueues card generation."""
     filename = file.filename or "upload.pdf"
     lower_name = filename.lower()
