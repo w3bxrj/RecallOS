@@ -14,6 +14,8 @@ export interface GenerationState {
   cards: Card[];
   warnings: string[];
   errorMessage: string | null;
+  notice: string | null;
+  isVision: boolean;
   isPollingFallback: boolean;
 }
 
@@ -27,6 +29,8 @@ export function useGenerationJob(jobId: number | null) {
     cards: [],
     warnings: [],
     errorMessage: null,
+    notice: null,
+    isVision: false,
     isPollingFallback: false,
   });
 
@@ -117,6 +121,8 @@ export function useGenerationJob(jobId: number | null) {
           doneChunks: Math.max(prev.doneChunks, job.done_chunks),
           cardsCreated: Math.max(prev.cardsCreated, job.cards_created),
           deckId: job.deck_id,
+          notice: job.notice ?? prev.notice,
+          isVision: Boolean(job.vision_mode ?? job.is_vision ?? prev.isVision),
         }));
 
         if (job.status === 'ready') {
@@ -154,23 +160,31 @@ export function useGenerationJob(jobId: number | null) {
           const msg = JSON.parse(event.data);
 
           switch (msg.type) {
-            case 'snapshot':
+            case 'snapshot': {
               // Rule a: ignore snapshot if terminal event received
               if (isTerminalRef.current) return;
+              const snapData = msg.data || msg;
+              const isVision = Boolean(snapData.vision_mode ?? snapData.is_vision ?? msg.vision_mode ?? msg.is_vision);
+              const notice = snapData.notice ?? msg.notice;
+              const statusVal = snapData.status || msg.status;
+
               setState((prev) => ({
                 ...prev,
-                status: msg.status === 'ready' || msg.status === 'failed' ? msg.status : 'processing',
-                totalChunks: msg.total_chunks || prev.totalChunks,
-                doneChunks: msg.done_chunks || prev.doneChunks,
-                cardsCreated: msg.cards_created || prev.cardsCreated,
+                status: statusVal === 'ready' || statusVal === 'failed' ? statusVal : 'processing',
+                totalChunks: snapData.total_chunks || prev.totalChunks,
+                doneChunks: snapData.done_chunks || prev.doneChunks,
+                cardsCreated: snapData.cards_created || prev.cardsCreated,
+                notice: notice ?? prev.notice,
+                isVision: isVision || prev.isVision,
               }));
 
-              if (msg.status === 'ready') {
+              if (statusVal === 'ready') {
                 setTerminalState('ready');
-              } else if (msg.status === 'failed') {
-                setTerminalState('failed', null, msg.error_message || 'Generation failed');
+              } else if (statusVal === 'failed') {
+                setTerminalState('failed', null, snapData.error_message || msg.error_message || 'Generation failed');
               }
               break;
+            }
 
             case 'chunk_done':
               if (isTerminalRef.current) return;

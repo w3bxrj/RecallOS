@@ -153,9 +153,17 @@ export const UploadPage: React.FC = () => {
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-md p-6 sm:p-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold mb-2 bg-indigo-50 text-indigo-700 border border-indigo-100">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Job #{activeJobId}</span>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Job #{activeJobId}</span>
+                </div>
+                {generation.isVision && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    <span>Reading scanned pages...</span>
+                  </div>
+                )}
               </div>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
                 {isReady
@@ -170,8 +178,10 @@ export const UploadPage: React.FC = () => {
                   : isFailed
                   ? generation.errorMessage || 'The generation job could not be completed.'
                   : generation.totalChunks > 0
-                  ? `Processing chunk ${generation.doneChunks} of ${generation.totalChunks}...`
-                  : 'Reading document and partitioning text into chunks...'}
+                  ? (generation.isVision
+                      ? `Reading scanned pages (chunk ${generation.doneChunks} of ${generation.totalChunks})...`
+                      : `Processing chunk ${generation.doneChunks} of ${generation.totalChunks}...`)
+                  : 'Reading document and partitioning into chunks...'}
               </p>
             </div>
 
@@ -182,6 +192,14 @@ export const UploadPage: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Page Cap / Processing Notice */}
+          {generation.notice && (
+            <div className="mb-6 p-4 bg-amber-50/90 rounded-2xl border border-amber-200 text-xs text-amber-900 flex items-center gap-2.5 shadow-xs">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span className="font-medium">{generation.notice}</span>
+            </div>
+          )}
 
           {/* Progress Bar */}
           {!isFailed && (
@@ -425,8 +443,8 @@ export const UploadPage: React.FC = () => {
                 <p className="text-xs text-slate-500 mt-1">
                   or <span className="text-indigo-600 font-medium">browse files</span> from your device
                 </p>
-                <p className="text-xs text-slate-400 mt-3 font-medium">
-                  Supported formats: PDF (.pdf) or Text (.txt) • Max 10 MB
+                <p className="text-xs text-slate-500 mt-3 font-medium max-w-md">
+                  Text-based and scanned PDFs are both supported (scanned ones take longer, about 10 to 20 seconds per 4 pages). UTF-8 Text (.txt) also supported • Max 10 MB
                 </p>
               </div>
             )}

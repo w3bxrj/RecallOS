@@ -62,6 +62,9 @@ export interface JobResponse {
   total_chunks: number;
   done_chunks: number;
   cards_created: number;
+  is_vision?: boolean;
+  vision_mode?: boolean;
+  notice?: string | null;
   error_message: string | null;
   created_at: string;
   finished_at: string | null;
