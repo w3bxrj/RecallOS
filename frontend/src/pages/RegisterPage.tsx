@@ -108,10 +108,10 @@ export const RegisterPage: React.FC = () => {
         <div className="relative z-10 space-y-8 my-auto py-8">
           <div className="space-y-3 max-w-md">
             <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight leading-tight">
-              Study smarter, retain more, stress less.
+              Turn your notes into flashcards you remember.
             </h1>
             <p className="text-indigo-100 text-sm xl:text-base leading-relaxed">
-              Create your account to transform your lecture notes, slides, and textbooks into personalized flashcard decks.
+              Create your account to transform your lecture notes, text, and scanned PDFs into personalized flashcard decks.
             </p>
           </div>
 
@@ -123,7 +123,7 @@ export const RegisterPage: React.FC = () => {
               <div>
                 <h2 className="text-sm font-bold">Notes to flashcards in seconds</h2>
                 <p className="text-xs text-indigo-100 mt-0.5 leading-relaxed">
-                  Upload PDFs, text, or slides. Multimodal AI extracts key definitions, equations, and core concepts.
+                  Upload text or scanned PDFs, or paste notes. AI extracts key definitions and concepts.
                 </p>
               </div>
             </div>
@@ -135,7 +135,7 @@ export const RegisterPage: React.FC = () => {
               <div>
                 <h2 className="text-sm font-bold">Smart review schedule</h2>
                 <p className="text-xs text-indigo-100 mt-0.5 leading-relaxed">
-                  FSRS spaced repetition algorithms prompt review right before memory decay sets in.
+                  An SM-2 based schedule shows each card again right before you would forget it.
                 </p>
               </div>
             </div>
@@ -147,7 +147,7 @@ export const RegisterPage: React.FC = () => {
               <div>
                 <h2 className="text-sm font-bold">Know what to revise</h2>
                 <p className="text-xs text-indigo-100 mt-0.5 leading-relaxed">
-                  Real-time retention scores pinpoint weak topics before exam day.
+                  See which topics are weak and get an estimated retention for exam day.
                 </p>
               </div>
             </div>

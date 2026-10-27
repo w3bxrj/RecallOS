@@ -343,7 +343,7 @@ export const UploadPage: React.FC = () => {
           Upload Study Material
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Upload PDF lecture slides, textbook notes, or TXT study guides. RecallOS will generate spaced repetition flashcards automatically.
+          Upload scanned PDFs, textbook notes, or TXT study guides. RecallOS will generate spaced repetition flashcards automatically.
         </p>
       </div>
 
