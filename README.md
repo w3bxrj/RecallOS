@@ -55,16 +55,25 @@ RecallOS provides an automated pipeline that ingests study notes (PDF or plain t
 - **Adaptive Exam Mode:**
   - Configured via target exam date in Settings.
   - **Interval Capping:** Next due dates are capped by `apply_exam_mode_cap`:
-    $$\text{exam\_cap} = \text{exam\_date} - 1 \text{ day}$$
-    $$\text{due\_date} = \max(\text{review\_date} + 1, \min(\text{computed\_due\_date}, \text{exam\_cap}))$$
+    ```text
+    exam_cap = exam_date - 1 day
+    due_date = max(review_date + 1 day, min(computed_due_date, exam_cap))
+    ```
   - **Queue Prioritization:** Due cards are sorted by study urgency:
-    $$\text{priority} = (1.0 - \text{topic\_accuracy}) \times 0.6 + \text{overdue\_days\_normalised} \times 0.4$$
-    where $\text{topic\_accuracy}$ is calculated from reviews over the last 30 days (ratings 3 and 4 count as correct; neutral 0.5 used if $< 5$ reviews), and $\text{overdue\_days\_normalised} = \min(1.0, \max(0, \text{days\_overdue}) / 30.0)$.
+    ```text
+    priority = (1.0 - topic_accuracy) * 0.6 + overdue_days_normalised * 0.4
+    overdue_days_normalised = min(1.0, max(0, days_overdue) / 30.0)
+    ```
+    `topic_accuracy` is calculated from reviews over the last 30 days. Ratings of 3 and 4 count as correct; a neutral value of `0.5` is used when fewer than 5 reviews are available.
 - **Analytics Dashboard:**
   - **Overview Stats:** Active review streak, cards due today, total library cards, exam countdown, and estimated exam-day retention.
   - **Estimated Retention on Exam Day:** Computed via Ebbinghaus decay approximation:
-    $$R_i = \exp\left(-\frac{t_i}{S_i}\right)$$
-    where $t_i = \max(0, (\text{exam\_date} - \text{last\_reviewed\_date}).\text{days})$ and $S_i = \max(\text{interval\_days}, 1)$. Expressed as the average recall percentage across reviewed cards. *Note: this metric is an estimate of memory state assuming no further revision occurs between now and the exam.*
+    ```text
+    R_i = exp(-t_i / S_i)
+    t_i = max(0, days_between(last_reviewed_date, exam_date))
+    S_i = max(interval_days, 1)
+    ```
+    Here, `R_i` is the estimated retention for card `i`, `t_i` is the number of days from its last review to the exam (never below zero), and `S_i` is the stability approximation based on its review interval. The dashboard displays the average estimated retention across reviewed cards as a percentage. *Note: this metric estimates memory state assuming no further revision occurs between now and the exam.*
   - **Topic Accuracy Chart:** Horizontal bar chart displaying accuracy per topic with a 60% proficiency reference line and accessible striped patterns for weak topics.
   - **Weak Topics List:** Explicit listing of topics performing below the 60% benchmark.
   - **30-Day Workload Forecast:** Bar chart projecting daily due counts across the next 30 days, folding overdue cards into Day 1.
@@ -311,7 +320,7 @@ The frontend will run at `http://localhost:5173`. When running locally in develo
 
 - **Live Frontend:** [https://recall-os-study.vercel.app](https://recall-os-study.vercel.app)
 - **Live Backend API:** [https://recallos-backend.onrender.com](https://recallos-backend.onrender.com) (Health check endpoint: `GET https://recallos-backend.onrender.com/health`)
-- **Demo video: [https://drive.google.com/file/d/1yvAGq8cdToMB8GFPazNpF06CDtY4bTOp/view?usp=drive_link]**
+- **Demo video:** [Watch the RecallOS demo](https://drive.google.com/file/d/1yvAGq8cdToMB8GFPazNpF06CDtY4bTOp/view?usp=drive_link)
 
 ### Production Infrastructure Overview
 1. **Database (Neon Serverless PostgreSQL):** Managed PostgreSQL instance configured with `sslmode=require`, SQLAlchemy connection pooling (`pool_size=3`, `max_overflow=2`), and `pool_pre_ping=True`.
@@ -369,7 +378,7 @@ npm run build
 - **Zero Secrets in Code or Logs:**
   - Google Gemini API keys are passed exclusively via the `x-goog-api-key` HTTP request header, never in URL query strings.
   - A centralized `redact()` utility strips Gemini keys (`AIza...`, `AQ...`), Bearer tokens, query string parameters, and configured secrets from all logs and error messages.
-- **Fail-Fast Error Masking:** The database `jobs.error_message` column never stores raw third-party exception strings. Specific HTTP status codes from the LLM provider are mapped to friendly messages (e.g. 401/403 $\rightarrow$ `"AI service configuration problem"`, 404 $\rightarrow$ `"The AI service is temporarily unavailable. Please try again later."`).
+- **Fail-Fast Error Masking:** The database `jobs.error_message` column never stores raw third-party exception strings. Specific HTTP status codes from the LLM provider are mapped to friendly messages (e.g. 401/403 map to `"AI service configuration problem"`; 404 maps to `"The AI service is temporarily unavailable. Please try again later."`).
 - **Prompt Injection Defense:** Untrusted study material is encapsulated between `<<<STUDY_MATERIAL_START>>>` and `<<<STUDY_MATERIAL_END>>>` markers accompanied by a system directive commanding the model to treat the content strictly as passive data and ignore embedded instructions.
 - **Strict Input Validation:** Uploaded PDFs are checked for magic bytes (`%PDF`), encrypted status, and size caps. Text files require valid UTF-8 encoding.
 - **Stranded Job Recovery:** On application startup, the lifespan context executes a SQL query marking any jobs left in `queued` or `processing` states as `failed` (`"Server restarted during processing"`), preventing jobs from hanging permanently if the server restarts.
@@ -382,8 +391,8 @@ npm run build
 2. **Free-Tier Host Latency:** Render's free tier spins down idle instances after 15 minutes, introducing a 30 to 60-second cold start delay on the first inbound request.
 3. **Scanned PDF Page Cap:** Scanned PDF processing is capped at `MAX_VISION_PAGES` (default 32 pages) and requires 10 to 20 seconds per 4-page chunk due to multimodal vision inference and API rate-limit cooldowns.
 4. **AI Generation Errors:** As with all large language model extractions, generated flashcards and distractors may occasionally contain factual errors or imperfect phrasing.
-5. **Retention Metric Assumptions:** The estimated exam-day retention score is an approximation derived from an exponential decay model ($R = \exp(-t/S)$) that assumes the student ceases studying entirely from today until the exam date.
-6. **Token Storage in LocalStorage:** JWT tokens are stored in the browser's `localStorage` for authentication persistence.This design choice favors implementation simplicity for single-page applications while relying on strict CSP and lack of third-party runtime scripts to mitigate XSS risk.
+5. **Retention Metric Assumptions:** The estimated exam-day retention score is an approximation derived from an exponential decay model (`R = exp(-t / S)`) that assumes the student ceases studying entirely from today until the exam date.
+6. **Token Storage in LocalStorage:** JWT tokens are stored in the browser's `localStorage` for authentication persistence. This design choice favors implementation simplicity for single-page applications while relying on strict CSP and lack of third-party runtime scripts to mitigate XSS risk.
 7. **Account Management:** The current implementation does not include self-service email verification or password reset flows.
 
 ---
