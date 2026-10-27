@@ -134,7 +134,11 @@ export const UploadPage: React.FC = () => {
     setFile(null);
     setTitle('');
     setUploadError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setSearchParams({});
+    navigate('/upload', { replace: true });
   };
 
   // -------------------------------------------------------------
@@ -240,6 +244,7 @@ export const UploadPage: React.FC = () => {
                 <span>View deck</span>
               </Link>
               <button
+                type="button"
                 onClick={resetUpload}
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-slate-500 hover:text-slate-700 text-sm font-medium transition-colors ml-auto"
               >
@@ -255,6 +260,7 @@ export const UploadPage: React.FC = () => {
                 {generation.errorMessage || 'Generation failed. You may retry uploading.'}
               </p>
               <button
+                type="button"
                 onClick={resetUpload}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition-colors"
               >

@@ -212,4 +212,73 @@ describe('Document Generation Message Handling and Progress State', () => {
     expect(negative.chunkText).toBe('Starting...');
     expect(negative.percent).toBe(0);
   });
+
+  it('immediately displays streaming cards in chunk_done even if id is initially missing', () => {
+    const processingState: GenerationState = {
+      ...baseState,
+      status: 'processing',
+      totalChunks: 3,
+      doneChunks: 0,
+      cards: [],
+    };
+
+    // First chunk arrives with 2 cards
+    const chunk1 = {
+      type: 'chunk_done',
+      data: {
+        chunk_index: 0,
+        total_chunks: 3,
+        cards_created: 2,
+        new_cards: [
+          { topic: 'CS', question: 'What is a process?', answer: 'A program in execution.' },
+          { topic: 'CS', question: 'What is a thread?', answer: 'A lightweight unit of execution.' },
+        ],
+      },
+    };
+
+    const step1 = handleJobMessage(processingState, chunk1);
+    expect(step1.nextState.cards.length).toBe(2);
+    expect(step1.nextState.cards[0].question).toBe('What is a process?');
+    expect(step1.nextState.cards[0].id).toBeDefined();
+
+    // Second chunk arrives with 1 more card
+    const chunk2 = {
+      type: 'chunk_done',
+      data: {
+        chunk_index: 1,
+        total_chunks: 3,
+        cards_created: 3,
+        new_cards: [
+          { id: 3, deck_id: 10, topic: 'CS', question: 'What is a semaphore?', answer: 'A synchronization variable.' },
+        ],
+      },
+    };
+
+    const step2 = handleJobMessage(step1.nextState, chunk2);
+    expect(step2.nextState.cards.length).toBe(3);
+    expect(step2.nextState.cards[2].id).toBe(3);
+    expect(step2.nextState.cards[2].question).toBe('What is a semaphore?');
+  });
+
+  it('populates live feed immediately from snapshot cards if connecting mid-job', () => {
+    const midJobSnapshot = {
+      type: 'snapshot',
+      data: {
+        status: 'processing',
+        deck_id: 10,
+        done_chunks: 1,
+        total_chunks: 3,
+        cards_created: 2,
+        cards: [
+          { id: 1, deck_id: 10, topic: 'CS', question: 'Q1', answer: 'A1' },
+          { id: 2, deck_id: 10, topic: 'CS', question: 'Q2', answer: 'A2' },
+        ],
+      },
+    };
+
+    const { nextState } = handleJobMessage(baseState, midJobSnapshot);
+    expect(nextState.cards.length).toBe(2);
+    expect(nextState.cards[0].id).toBe(1);
+    expect(nextState.cards[1].id).toBe(2);
+  });
 });

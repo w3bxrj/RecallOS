@@ -178,9 +178,16 @@ export function useGenerationJob(jobId: number | null) {
 
   // Lifecycle
   useEffect(() => {
+    stopAll();
     isTerminalRef.current = false;
     hydratedDeckIdRef.current = null;
     reconnectAttemptsRef.current = 0;
+
+    // Always reset state when jobId changes to prevent leaking old job cards/status
+    setState({
+      ...INITIAL_GENERATION_STATE,
+      status: jobId ? 'connecting' : 'idle',
+    });
 
     if (jobId) {
       connectWs();

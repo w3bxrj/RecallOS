@@ -28,16 +28,56 @@ export const INITIAL_GENERATION_STATE: GenerationState = {
   isPollingFallback: false,
 };
 
-// Deduplicate cards by ID while keeping stable ordering
+// Deduplicate cards by ID or Question text while keeping stable ordering
 export function mergeCards(existing: Card[], incoming: Card[]): Card[] {
-  const map = new Map<number, Card>();
+  const result: Card[] = [...existing];
+  const seenIds = new Set<number>();
+  const seenQuestions = new Set<string>();
+
   existing.forEach((c) => {
-    if (c && c.id != null) map.set(c.id, c);
+    if (c && c.id != null) seenIds.add(c.id);
+    if (c && c.question) seenQuestions.add(c.question.trim().toLowerCase());
   });
+
+  let tempCounter = existing.length + 1;
+
   incoming.forEach((c) => {
-    if (c && c.id != null) map.set(c.id, c);
+    if (!c) return;
+    const qKey = c.question ? c.question.trim().toLowerCase() : '';
+
+    if (c.id != null && seenIds.has(c.id)) {
+      const idx = result.findIndex((r) => r.id === c.id);
+      if (idx !== -1) {
+        result[idx] = { ...result[idx], ...c };
+      }
+      return;
+    }
+
+    if (qKey && seenQuestions.has(qKey)) {
+      // If card was previously added with a temporary id, upgrade with real DB id
+      if (c.id != null) {
+        const idx = result.findIndex(
+          (r) => r.question && r.question.trim().toLowerCase() === qKey
+        );
+        if (idx !== -1 && (result[idx].id == null || result[idx].id >= 1000000)) {
+          result[idx] = { ...result[idx], id: c.id };
+          seenIds.add(c.id);
+        }
+      }
+      return;
+    }
+
+    if (c.id != null) seenIds.add(c.id);
+    if (qKey) seenQuestions.add(qKey);
+
+    const safeCard: Card = {
+      ...c,
+      id: c.id != null ? c.id : 1000000 + tempCounter++,
+    };
+    result.push(safeCard);
   });
-  return Array.from(map.values()).sort((a, b) => a.id - b.id);
+
+  return result;
 }
 
 // Progress calculation helper with strict finite guards and 0..100 clamping
@@ -114,6 +154,13 @@ export function handleJobMessage(
         ? (data.error_message || message.error_message || prevState.errorMessage || 'Generation failed.')
         : prevState.errorMessage;
 
+      const incomingCards: Card[] = Array.isArray(data.cards)
+        ? data.cards
+        : Array.isArray(message.cards)
+        ? message.cards
+        : [];
+      const cards = incomingCards.length > 0 ? mergeCards(prevState.cards, incomingCards) : prevState.cards;
+
       const status: JobStatus | 'connecting' | 'idle' = isReady
         ? 'ready'
         : isFailed
@@ -127,6 +174,7 @@ export function handleJobMessage(
         doneChunks,
         cardsCreated,
         deckId,
+        cards,
         isVision,
         notice,
         errorMessage,
