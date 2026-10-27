@@ -569,3 +569,40 @@ def test_api_stats_unauthenticated(client: TestClient):
     assert res_fc.status_code == 401
 
 
+def test_seeded_demo_retention_and_metrics(client: TestClient):
+    """Verify that seed_database produces realistic retention between 35% and 60%,
+    a 14-day streak, due cards today, highlighted weak topic, and is safe to run twice.
+    """
+    from scripts.seed import seed_database
+
+    # Run seed
+    seed_database()
+
+    # Login as test user
+    login_res = client.post("/api/auth/login", json={"email": "testuser@example.com", "password": "password123"})
+    assert login_res.status_code == 200
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Overview check
+    ov = client.get("/api/stats/overview", headers=headers).json()
+    assert ov["streak_days"] >= 14
+    assert ov["due_today"] > 0
+    assert ov["expected_retention_on_exam"] is not None
+    assert 35.0 <= ov["expected_retention_on_exam"] <= 60.0, f"Expected retention {ov['expected_retention_on_exam']}% not in [35, 60]"
+
+    # 2. Weak topic check
+    topics = client.get("/api/stats/topics", headers=headers).json()
+    os_topic = next((t for t in topics if t["topic"] == "Operating Systems"), None)
+    assert os_topic is not None
+    assert os_topic["is_weak"] is True
+    assert os_topic["accuracy"] < 60.0
+
+    # 3. Safe to run twice without duplicating data or breaking retention
+    seed_database()
+    ov2 = client.get("/api/stats/overview", headers=headers).json()
+    assert 35.0 <= ov2["expected_retention_on_exam"] <= 60.0
+    assert ov2["total_cards"] == 30
+
+
+

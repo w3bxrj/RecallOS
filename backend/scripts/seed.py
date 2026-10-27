@@ -12,6 +12,12 @@ from typing import List, Dict, Any
 # Ensure backend root is on sys.path
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..")))
 
+# Production safety guard: Refuse to run if ENV=production
+_env = os.getenv("ENV", os.getenv("ENVIRONMENT", "development")).lower()
+if _env == "production":
+    print("ERROR: Refusing to seed database because ENV=production is active.")
+    sys.exit(1)
+
 from sqlalchemy import select
 from app.core.config import settings
 from app.core.db import SessionLocal, engine
@@ -348,8 +354,10 @@ def seed_database() -> None:
     db = SessionLocal()
     today = today_ist()
     now = now_ist()
+    exam_target_days = 6
+    exam_target_dt = now + timedelta(days=exam_target_days)
 
-    print(f"Connecting to database (Current IST Date: {today})...")
+    print(f"Connecting to database (Current IST Date: {today}, Target Exam: {exam_target_dt.date()})...")
     Base.metadata.create_all(bind=engine)
 
     try:
@@ -361,187 +369,223 @@ def seed_database() -> None:
                 email=test_email,
                 password_hash=hash_password("password123"),
                 display_name="Test Student",
-                exam_date=now + timedelta(days=21),  # Exam 3 weeks from now
+                exam_date=exam_target_dt,
             )
             db.add(user)
             db.commit()
             db.refresh(user)
-            print(f"Created test user: {user.email} (Exam Date: {user.exam_date.date()})")
+            print(f"Created test user: {user.email}")
         else:
-            print(f"Test user already exists: {user.email}")
-
-        # 2. Create or fetch sample deck
-        deck_hash = "seeded_cs_core_deck_hash_001"
-        deck = db.scalar(
-            select(Deck).where(
-                Deck.user_id == user.id,
-                Deck.file_hash == deck_hash,
-            )
-        )
-        if not deck:
-            deck = Deck(
-                user_id=user.id,
-                title="Computer Science Core (GATE & Interview Prep)",
-                source_filename="cs_core_notes.pdf",
-                file_hash=deck_hash,
-            )
-            db.add(deck)
+            print(f"Resetting existing demo user data for {test_email}...")
+            # Clean reset for demo user only to guarantee clean, idempotent seeding
+            db.query(Review).filter(Review.user_id == user.id).delete()
+            db.query(CardState).filter(CardState.user_id == user.id).delete()
+            deck_ids = [d.id for d in db.query(Deck.id).filter(Deck.user_id == user.id).all()]
+            if deck_ids:
+                db.query(Card).filter(Card.deck_id.in_(deck_ids)).delete(synchronize_session=False)
+                db.query(Deck).filter(Deck.id.in_(deck_ids)).delete(synchronize_session=False)
+            user.exam_date = exam_target_dt
             db.commit()
-            db.refresh(deck)
-            print(f"Created sample deck: '{deck.title}' (ID: {deck.id})")
-        else:
-            print(f"Sample deck already exists (ID: {deck.id})")
+            db.refresh(user)
+
+        # 2. Create sample deck
+        deck_hash = "seeded_cs_core_deck_hash_001"
+        deck = Deck(
+            user_id=user.id,
+            title="Computer Science Core (GATE & Interview Prep)",
+            source_filename="cs_core_notes.pdf",
+            file_hash=deck_hash,
+        )
+        db.add(deck)
+        db.commit()
+        db.refresh(deck)
+        print(f"Created sample deck: '{deck.title}' (ID: {deck.id})")
 
         # 3. Create cards and varied card states
-        existing_cards_count = db.scalar(
-            select(Card).where(Card.deck_id == deck.id)
-        )
-        if not existing_cards_count:
-            print(f"Seeding {len(SAMPLE_CARDS)} cards with varied due dates...")
-            for i, card_info in enumerate(SAMPLE_CARDS):
-                card = Card(
-                    deck_id=deck.id,
-                    topic=card_info["topic"],
-                    question=card_info["question"],
-                    answer=card_info["answer"],
-                    distractors=card_info["distractors"],
-                )
-                db.add(card)
-                db.flush()
+        # 30 cards total:
+        # - ~1/3 well-learned (10 cards): interval_days 14-30, last_reviewed within 3 days, ease ~2.5
+        # - ~1/3 mid-learning (10 cards): interval_days 4-10
+        # - ~1/3 weak or new (10 cards): 8 Operating Systems weak cards with short intervals, 2 new cards
+        print(f"Seeding {len(SAMPLE_CARDS)} cards with realistic SM-2 learning profiles...")
 
-                # Stagger due dates:
-                # 10 cards overdue (due 1 to 5 days ago)
-                # 10 cards due today
-                # 10 cards upcoming (due in 1 to 7 days)
-                if i < 10:
-                    due_date = today - timedelta(days=(i % 5) + 1)
-                    repetitions = 2
-                    interval_days = (i % 5) + 1
-                    ease_factor = 2.4
-                elif i < 20:
-                    due_date = today
-                    repetitions = 1
-                    interval_days = 1
-                    ease_factor = 2.5
+        created_cards: List[Card] = []
+        for card_info in SAMPLE_CARDS:
+            card = Card(
+                deck_id=deck.id,
+                topic=card_info["topic"],
+                question=card_info["question"],
+                answer=card_info["answer"],
+                distractors=card_info["distractors"],
+            )
+            db.add(card)
+            created_cards.append(card)
+        db.flush()
+
+        cards_by_topic: Dict[str, List[Card]] = {}
+        for c in created_cards:
+            cards_by_topic.setdefault(c.topic, []).append(c)
+
+        # Build card profile mapping:
+        # Group 1: 10 well-learned cards
+        # Group 2: 10 mid-learning cards
+        # Group 3: 8 weak OS cards + 2 new cards
+        well_intervals = [22, 24, 25, 26, 28, 28, 30, 26, 27, 29]
+        mid_intervals = [6, 7, 7, 8, 8, 9, 9, 10, 8, 9]
+
+        card_profiles: Dict[int, Dict[str, Any]] = {}
+
+        # Well-learned: 6 Computer Networks + 3 Database Management + 1 System Design
+        well_cards = (
+            cards_by_topic.get("Computer Networks", [])[:6]
+            + cards_by_topic.get("Database Management", [])[:3]
+            + cards_by_topic.get("System Design", [])[:1]
+        )
+        for idx, card in enumerate(well_cards):
+            interval = well_intervals[idx % len(well_intervals)]
+            last_dt = ist_midnight(today - timedelta(days=idx % 3)) + timedelta(hours=10, minutes=15 * idx)
+            due_date = last_dt.date() + timedelta(days=interval)
+            card_profiles[card.id] = {
+                "interval_days": interval,
+                "ease_factor": 2.5,
+                "repetitions": 4,
+                "last_reviewed_at": last_dt,
+                "due_date": due_date,
+                "lapses": 0,
+            }
+
+        # Mid-learning: 2 Computer Networks + 4 Database Management + 4 System Design
+        mid_cards = (
+            cards_by_topic.get("Computer Networks", [])[6:8]
+            + cards_by_topic.get("Database Management", [])[3:7]
+            + cards_by_topic.get("System Design", [])[1:5]
+        )
+        mid_offsets = [7, 8, 8, 9, 1, 2, 2, 1, 2, 3]  # 4 due today / overdue, 6 upcoming
+        for idx, card in enumerate(mid_cards):
+            interval = mid_intervals[idx % len(mid_intervals)]
+            days_ago = mid_offsets[idx % len(mid_offsets)]
+            last_dt = ist_midnight(today - timedelta(days=days_ago)) + timedelta(hours=11, minutes=12 * idx)
+            due_date = last_dt.date() + timedelta(days=interval)
+            card_profiles[card.id] = {
+                "interval_days": interval,
+                "ease_factor": 2.4,
+                "repetitions": 2,
+                "last_reviewed_at": last_dt,
+                "due_date": due_date,
+                "lapses": 0,
+            }
+
+        # Weak: 8 Operating Systems cards (interval 1 to 2, low ease, due today / overdue)
+        os_cards = cards_by_topic.get("Operating Systems", [])
+        weak_intervals = [1, 2, 1, 2, 1, 2, 1, 2]
+        for idx, card in enumerate(os_cards):
+            interval = weak_intervals[idx % len(weak_intervals)]
+            days_ago = idx % 2  # today or yesterday
+            last_dt = ist_midnight(today - timedelta(days=days_ago)) + timedelta(hours=14, minutes=10 * idx)
+            due_date = last_dt.date() + timedelta(days=interval)
+            card_profiles[card.id] = {
+                "interval_days": interval,
+                "ease_factor": 2.0,
+                "repetitions": 1,
+                "last_reviewed_at": last_dt,
+                "due_date": due_date,
+                "lapses": 2,
+            }
+
+        # New: 2 System Design cards (unreviewed, due today)
+        new_cards = cards_by_topic.get("System Design", [])[5:7]
+        for card in new_cards:
+            card_profiles[card.id] = {
+                "interval_days": 1,
+                "ease_factor": 2.5,
+                "repetitions": 0,
+                "last_reviewed_at": None,
+                "due_date": today,
+                "lapses": 0,
+            }
+
+        # Insert CardStates
+        for card in created_cards:
+            prof = card_profiles[card.id]
+            state = CardState(
+                card_id=card.id,
+                user_id=user.id,
+                ease_factor=prof["ease_factor"],
+                interval_days=prof["interval_days"],
+                repetitions=prof["repetitions"],
+                due_date=prof["due_date"],
+                last_reviewed_at=prof["last_reviewed_at"],
+                lapses=prof["lapses"],
+            )
+            db.add(state)
+
+        db.commit()
+        print("Successfully inserted 30 cards and initial card states.")
+
+        # 4. Seed ~80 historical reviews over past 14 days guaranteeing 14-day streak
+        print("Seeding ~80 historical reviews over past 14 days...")
+        review_plan = [
+            (13, 4),
+            (12, 4),
+            (11, 4),
+            (10, 4),
+            (9, 5),
+            (8, 6),
+            (7, 6),
+            (6, 6),
+            (5, 7),
+            (4, 6),
+            (3, 7),
+            (2, 6),
+            (1, 7),
+            (0, 8),  # today
+        ]
+        total_seeded_reviews = 0
+
+        # "Operating Systems": weak topic (accuracy < 60%, >= 5 reviews)
+        os_ratings = [1, 2, 1, 2, 3, 1, 2, 1, 1, 2, 2, 1, 3, 1, 2, 1, 2, 1, 2, 3]
+        os_idx = 0
+
+        # Other 3 topics: strong (accuracy ~85-90%)
+        strong_ratings = [3, 4, 4, 3, 4, 4, 3, 4, 4, 3, 4, 4, 2, 4, 3, 4, 4]
+        strong_idx = 0
+
+        for day_offset, num_reviews in review_plan:
+            rev_date = today - timedelta(days=day_offset)
+            base_time = ist_midnight(rev_date)
+
+            for rev_i in range(num_reviews):
+                if rev_i % 4 == 1 and "Operating Systems" in cards_by_topic:
+                    topic = "Operating Systems"
+                    card = cards_by_topic[topic][rev_i % len(cards_by_topic[topic])]
+                    rating = os_ratings[os_idx % len(os_ratings)]
+                    os_idx += 1
                 else:
-                    due_date = today + timedelta(days=(i % 7) + 1)
-                    repetitions = 3
-                    interval_days = (i % 7) + 1
-                    ease_factor = 2.6
+                    other_topics = [t for t in cards_by_topic if t != "Operating Systems"]
+                    topic = other_topics[rev_i % len(other_topics)]
+                    card = cards_by_topic[topic][rev_i % len(cards_by_topic[topic])]
+                    rating = strong_ratings[strong_idx % len(strong_ratings)]
+                    strong_idx += 1
 
-                state = CardState(
-                    card_id=card.id,
+                rev_dt = base_time + timedelta(hours=9 + (rev_i * 2), minutes=(rev_i * 7) % 60)
+                prof = card_profiles[card.id]
+                prev_int = max(1, prof["interval_days"] - 2)
+                new_int = prof["interval_days"]
+
+                review = Review(
                     user_id=user.id,
-                    ease_factor=ease_factor,
-                    interval_days=interval_days,
-                    repetitions=repetitions,
-                    due_date=due_date,
-                    lapses=0,
+                    card_id=card.id,
+                    rating=rating,
+                    reviewed_at=rev_dt,
+                    prev_interval=prev_int,
+                    new_interval=new_int,
                 )
-                db.add(state)
+                db.add(review)
+                total_seeded_reviews += 1
 
-            db.commit()
-            print("Successfully inserted 30 cards and initial card states.")
-        else:
-            print("Cards already exist for this deck. Skipping card insertion.")
-
-        # 4. Seed ~80 historical reviews across past 14 days
-        existing_reviews_count = db.scalar(
-            select(Review).where(Review.user_id == user.id)
-        )
-        if not existing_reviews_count:
-            print("Seeding ~80 historical reviews over past 14 days...")
-            all_cards = db.scalars(
-                select(Card).where(Card.deck_id == deck.id)
-            ).all()
-
-            cards_by_topic: Dict[str, List[Card]] = {}
-            for c in all_cards:
-                cards_by_topic.setdefault(c.topic, []).append(c)
-
-            latest_card_reviews: Dict[int, tuple] = {}
-
-            # Review distribution plan: 14 days, total 80 reviews
-            # Days 0 to 8 guarantee at least 9 consecutive review days ending today
-            review_plan = [
-                (13, 4),
-                (12, 4),
-                (11, 4),
-                (10, 4),
-                (9, 5),
-                (8, 6),
-                (7, 6),
-                (6, 6),
-                (5, 7),
-                (4, 6),
-                (3, 7),
-                (2, 6),
-                (1, 7),
-                (0, 8),  # today
-            ]
-            total_seeded_reviews = 0
-
-            # "Operating Systems": weak topic (accuracy < 60%, >= 5 reviews)
-            os_ratings = [1, 2, 1, 2, 3, 1, 2, 1, 1, 2, 2, 1, 3, 1, 2, 1, 2, 1, 2, 3]
-            os_idx = 0
-
-            # Other 3 topics: strong (accuracy ~85-90%)
-            strong_ratings = [3, 4, 4, 3, 4, 4, 3, 4, 4, 3, 4, 4, 2, 4, 3, 4, 4]
-            strong_idx = 0
-
-            for day_offset, num_reviews in review_plan:
-                rev_date = today - timedelta(days=day_offset)
-                base_time = ist_midnight(rev_date)
-
-                for rev_i in range(num_reviews):
-                    # Operating Systems gets ~25% of the reviews
-                    if rev_i % 4 == 1 and "Operating Systems" in cards_by_topic:
-                        topic = "Operating Systems"
-                        card = cards_by_topic[topic][rev_i % len(cards_by_topic[topic])]
-                        rating = os_ratings[os_idx % len(os_ratings)]
-                        os_idx += 1
-                    else:
-                        other_topics = [t for t in cards_by_topic if t != "Operating Systems"]
-                        topic = other_topics[rev_i % len(other_topics)]
-                        card = cards_by_topic[topic][rev_i % len(cards_by_topic[topic])]
-                        rating = strong_ratings[strong_idx % len(strong_ratings)]
-                        strong_idx += 1
-
-                    rev_dt = base_time + timedelta(hours=9 + (rev_i * 2), minutes=(rev_i * 7) % 60)
-                    prev_int = 1 if rating <= 2 else 3
-                    new_int = 1 if rating <= 2 else 6
-
-                    review = Review(
-                        user_id=user.id,
-                        card_id=card.id,
-                        rating=rating,
-                        reviewed_at=rev_dt,
-                        prev_interval=prev_int,
-                        new_interval=new_int,
-                    )
-                    db.add(review)
-                    total_seeded_reviews += 1
-
-                    if card.id not in latest_card_reviews or rev_dt > latest_card_reviews[card.id][0]:
-                        latest_card_reviews[card.id] = (rev_dt, new_int)
-
-            # Update CardStates with last_reviewed_at and interval_days
-            card_states = db.scalars(
-                select(CardState).where(CardState.user_id == user.id)
-            ).all()
-            for cs in card_states:
-                if cs.card_id in latest_card_reviews:
-                    last_dt, new_interval = latest_card_reviews[cs.card_id]
-                    cs.last_reviewed_at = last_dt
-                    cs.interval_days = new_interval
-
-            db.commit()
-            print(f"Successfully seeded {total_seeded_reviews} historical reviews across 14 days.")
-            print("Operating Systems seeded as weak topic (< 60% accuracy, >= 5 reviews).")
-            print("Guaranteed at least 9 consecutive review days ending today.")
-        else:
-            print("Historical reviews already exist. Skipping review seeding.")
-
+        db.commit()
+        print(f"Successfully seeded {total_seeded_reviews} historical reviews across 14 days.")
+        print("Operating Systems seeded as weak topic (< 60% accuracy, >= 5 reviews).")
+        print("Guaranteed 14-day consecutive review streak ending today.")
         print("Database seed completed successfully!")
     finally:
         db.close()
