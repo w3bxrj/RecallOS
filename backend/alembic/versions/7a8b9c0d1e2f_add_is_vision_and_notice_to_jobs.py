@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     with op.batch_alter_table('jobs', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('is_vision', sa.Boolean(), server_default='0', nullable=False))
+        batch_op.add_column(sa.Column('is_vision', sa.Boolean(), server_default=sa.false(), nullable=False))
         batch_op.add_column(sa.Column('notice', sa.Text(), nullable=True))
 
 

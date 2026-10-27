@@ -19,8 +19,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Set database URL from app settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Set database URL from app settings if not already provided or if placeholder
+current_url = config.get_main_option("sqlalchemy.url")
+if not current_url or "driver://user:pass" in current_url:
+    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = Base.metadata
 
@@ -43,8 +45,11 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
+    target_url = config.get_main_option("sqlalchemy.url")
+    if not target_url or "driver://user:pass" in target_url:
+        target_url = settings.DATABASE_URL
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = settings.DATABASE_URL
+    configuration["sqlalchemy.url"] = target_url
 
     connectable = engine_from_config(
         configuration,
