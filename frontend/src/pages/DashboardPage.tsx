@@ -1,13 +1,82 @@
-import React from 'react';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Upload, Layers, Calendar, Sparkles, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { apiGetStatsOverview, apiGetStatsTopics, apiGetStatsForecast } from '../api/stats';
+import type { StatsOverviewResponse, TopicAccuracyItem, ForecastResponse } from '../api/types';
+import { formatIstDateFull } from '../utils/dateUtils';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import { AnalyticsSkeleton } from '../components/dashboard/AnalyticsSkeleton';
+
+// Lazy-load the heavy Recharts analytics component to keep the initial bundle light
+const AnalyticsSection = React.lazy(
+  () => import('../components/dashboard/AnalyticsSection')
+);
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
 
+  // State for all 3 stats endpoints to support independent loading and error states
+  const [overview, setOverview] = useState<StatsOverviewResponse | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+
+  const [topics, setTopics] = useState<TopicAccuracyItem[] | null>(null);
+  const [topicsError, setTopicsError] = useState<string | null>(null);
+
+  const [forecast, setForecast] = useState<ForecastResponse | null>(null);
+  const [forecastError, setForecastError] = useState<string | null>(null);
+
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Endpoint fetchers with individual error tracking
+  const fetchOverview = useCallback(async () => {
+    try {
+      setOverviewError(null);
+      const res = await apiGetStatsOverview();
+      setOverview(res);
+    } catch (err: any) {
+      setOverviewError(err.message || 'Failed to load overview metrics');
+    }
+  }, []);
+
+  const fetchTopics = useCallback(async () => {
+    try {
+      setTopicsError(null);
+      const res = await apiGetStatsTopics();
+      setTopics(res);
+    } catch (err: any) {
+      setTopicsError(err.message || 'Failed to load topic accuracy');
+    }
+  }, []);
+
+  const fetchForecast = useCallback(async () => {
+    try {
+      setForecastError(null);
+      const res = await apiGetStatsForecast();
+      setForecast(res);
+    } catch (err: any) {
+      setForecastError(err.message || 'Failed to load forecast data');
+    }
+  }, []);
+
+  // Fetch immediately on mount using Promise.allSettled so one failing endpoint does not blank the dashboard
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    await Promise.allSettled([
+      fetchOverview(),
+      fetchTopics(),
+      fetchForecast(),
+    ]);
+    setLoading(false);
+  }, [fetchOverview, fetchTopics, fetchForecast]);
+
+  // Always refetch on mount so numbers are fresh when returning from review sessions
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+    <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-12">
       {/* Welcome Hero Banner */}
       <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 rounded-3xl p-8 sm:p-10 text-white shadow-xl shadow-indigo-100/50 relative overflow-hidden">
         <div className="absolute right-0 top-0 -mt-10 -mr-10 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
@@ -57,9 +126,7 @@ export const DashboardPage: React.FC = () => {
                 <>
                   Target Exam Date:{' '}
                   <span className="font-semibold text-slate-700">
-                    {new Date(user.exam_date).toLocaleDateString(undefined, {
-                      dateStyle: 'long',
-                    })}
+                    {formatIstDateFull(user.exam_date)}
                   </span>{' '}
                   (adaptive priority active)
                 </>
@@ -78,8 +145,29 @@ export const DashboardPage: React.FC = () => {
         </Link>
       </div>
 
+      {/* Analytics Section with ErrorBoundary and Suspense */}
+      <ErrorBoundary fallbackMessage="A newer version of RecallOS might have been deployed. Please reload the page to load fresh analytics.">
+        <Suspense fallback={<AnalyticsSkeleton />}>
+          {loading && !overview && !topics && !forecast ? (
+            <AnalyticsSkeleton />
+          ) : (
+            <AnalyticsSection
+              overview={overview}
+              overviewError={overviewError}
+              onRetryOverview={fetchOverview}
+              topics={topics}
+              topicsError={topicsError}
+              onRetryTopics={fetchTopics}
+              forecast={forecast}
+              forecastError={forecastError}
+              onRetryForecast={fetchForecast}
+            />
+          )}
+        </Suspense>
+      </ErrorBoundary>
+
       {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-4">
         <Link
           to="/review"
           className="group bg-white p-6 rounded-2xl border border-slate-200/80 hover:border-indigo-300 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between"
