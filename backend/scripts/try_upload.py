@@ -100,9 +100,14 @@ def main() -> None:
         done_chunks = job["done_chunks"]
         total_chunks = job["total_chunks"]
         cards_created = job["cards_created"]
+        is_vision = job.get("is_vision", False)
+        notice = job.get("notice")
         elapsed = int(time.time() - start_time)
 
-        print(f"  [{elapsed}s] Status: {status.upper()} | Chunks: {done_chunks}/{total_chunks} | Cards Created: {cards_created}")
+        mode_label = "[VISION]" if is_vision else "[TEXT]"
+        print(f"  [{elapsed}s] {mode_label} Status: {status.upper()} | Chunks: {done_chunks}/{total_chunks} | Cards Created: {cards_created}")
+        if notice:
+            print(f"       Notice: {notice}")
 
         if status == "ready":
             print(f"\n[+] Generation completed successfully! {cards_created} cards created.")
