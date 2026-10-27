@@ -39,10 +39,20 @@
     color: #ffffff;
   }
 
+  :focus {
+    outline: none;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+  }
+
   :focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
   }
+
 }
 
 /* Utilities for tabular numbers and micro-interactions */
@@ -59,3 +69,15 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

@@ -7,8 +7,8 @@ import {
   RotateCcw,
   ArrowRight,
   UploadCloud,
-  HelpCircle,
   Eye,
+
 } from 'lucide-react';
 import { m, AnimatePresence } from 'motion/react';
 import { apiGetReviewQueue, apiSubmitReview } from '../api/reviews';
@@ -281,7 +281,7 @@ export const ReviewPage: React.FC = () => {
           )}
         </div>
 
-        <div className="text-txt-muted text-xs font-mono tabular-nums">
+        <div className="text-txt-muted text-xs font-medium tabular-nums">
           Reviewed today: {reviewedCount}
         </div>
       </div>
@@ -296,16 +296,18 @@ export const ReviewPage: React.FC = () => {
           className="bg-surface rounded-3xl border border-border-subtle shadow-card p-6 sm:p-10 flex flex-col justify-between min-h-[360px] relative transition-shadow duration-300"
         >
           <div>
-            {/* Card Topic Badge */}
+            {/* Card Topic Badge & Optional Deck Name */}
             <div className="flex items-center justify-between mb-6">
               <span className="px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase bg-indigo-50 dark:bg-indigo-950/50 text-brand border border-indigo-100/60 dark:border-indigo-900/60">
                 {currentCard.topic}
               </span>
-              <span className="text-xs text-txt-muted font-medium flex items-center gap-1">
-                <HelpCircle className="w-3.5 h-3.5" />
-                <span>SM-2 Spaced Card</span>
-              </span>
+              {((currentCard as any).deck_name || (currentCard as any).deck_title) ? (
+                <span className="text-xs text-txt-muted font-medium">
+                  {((currentCard as any).deck_name || (currentCard as any).deck_title)}
+                </span>
+              ) : null}
             </div>
+
 
             {/* Question Text */}
             <div className="space-y-2">
