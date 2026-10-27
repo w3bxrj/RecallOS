@@ -53,6 +53,45 @@
     box-shadow: var(--focus-ring);
   }
 
+  /* Ensure native date inputs display full dd/mm/yyyy clearly in all themes */
+  input[type="date"] {
+    letter-spacing: normal;
+    text-transform: none;
+    font-variant-numeric: normal;
+  }
+
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  input[type="date"]::-webkit-datetime-edit-text,
+  input[type="date"]::-webkit-datetime-edit-month-field,
+  input[type="date"]::-webkit-datetime-edit-day-field,
+  input[type="date"]::-webkit-datetime-edit-year-field {
+    color: var(--text-primary);
+    letter-spacing: normal;
+    text-transform: none;
+    font-variant-numeric: normal;
+  }
+
+  input[type="date"]::-webkit-datetime-edit-month-field {
+    color: var(--text-primary) !important;
+    opacity: 1 !important;
+    display: inline-block;
+    min-width: 1.5em;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity var(--duration-fast);
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
 }
 
 /* Utilities for tabular numbers and micro-interactions */
