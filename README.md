@@ -406,12 +406,11 @@ The following features represent planned enhancements that are **not implemented
 
 In accordance with academic and submission integrity guidelines, AI assistance was utilized in the following areas during the design and development of RecallOS:
 
-- **Development & Coding Assistance:** An AI coding agent within the Antigravity IDE was used for iterative implementation, test creation, and bug fixing based on a phased technical specification. An AI assistant was used for initial requirement decomposition, architecture trade-off discussions, and code review.
+- **Development & Coding Assistance:** An AI coding agent was used for iterative implementation, test creation, and bug fixing based on a phased technical specification. An AI assistant was used for initial requirement decomposition, architecture trade-off discussions, and code review.
 - **Product Integration:** The production product integrates Google Gemini via direct REST calls for automated question-and-answer extraction from text and multimodal vision extraction from scanned PDFs.
 - **Human Verification:** All generated code was verified by hand:
   - The complete test suites (119 backend Pytest cases, 21 frontend Vitest cases) were executed and validated locally.
   - Manual end-to-end user acceptance testing (registration, upload, streaming generation, SM-2 review, dashboard calculations) was performed on both local and production environments.
   - Security policies, credential redaction patterns, and environment variable isolation were audited manually.
-- **Architecture References:** Architectural trade-offs and decision logs are documented in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ---
