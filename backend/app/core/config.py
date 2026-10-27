@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-1.5-flash"
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
     MAX_UPLOAD_MB: int = 10
+    MAX_VISION_PAGES: int = 32
     DAILY_CARD_LIMIT: int = 50
     ENABLE_DUEL: bool = True
 

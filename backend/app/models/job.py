@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy import String, Integer, Text, DateTime, ForeignKey
+from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
@@ -15,6 +15,8 @@ class Job(Base):
     total_chunks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     done_chunks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     cards_created: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_vision: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    notice: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

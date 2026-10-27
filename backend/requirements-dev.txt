@@ -1,0 +1,2 @@
+# Development and testing requirements
+pillow==13.0.0
