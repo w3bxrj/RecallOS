@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Upload, Layers, Calendar, Sparkles, ArrowRight } from 'lucide-react';
+import { m } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { apiGetStatsOverview, apiGetStatsTopics, apiGetStatsForecast } from '../api/stats';
 import type { StatsOverviewResponse, TopicAccuracyItem, ForecastResponse } from '../api/types';
@@ -78,7 +79,12 @@ export const DashboardPage: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-12">
       {/* Welcome Hero Banner */}
-      <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 rounded-3xl p-8 sm:p-10 text-white shadow-xl shadow-indigo-100/50 relative overflow-hidden">
+      <m.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="brand-gradient rounded-3xl p-8 sm:p-10 text-white shadow-xl shadow-indigo-500/20 relative overflow-hidden"
+      >
         <div className="absolute right-0 top-0 -mt-10 -mr-10 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
         <div className="relative z-10 max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold uppercase tracking-wider mb-4 border border-white/20">
@@ -95,37 +101,35 @@ export const DashboardPage: React.FC = () => {
           <div className="flex flex-wrap gap-4">
             <Link
               to="/review"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-indigo-700 hover:bg-indigo-50 font-semibold text-sm shadow-md transition-all duration-150"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-indigo-900 hover:bg-indigo-50 font-semibold text-sm shadow-md transition-all duration-150"
             >
               <BookOpen className="w-4 h-4" />
               <span>Start Reviewing</span>
             </Link>
             <Link
               to="/upload"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-500/40 hover:bg-indigo-500/60 border border-white/20 text-white font-semibold text-sm transition-all duration-150 backdrop-blur-sm"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 text-white font-semibold text-sm transition-all duration-150 backdrop-blur-sm"
             >
               <Upload className="w-4 h-4" />
               <span>Upload Notes</span>
             </Link>
           </div>
         </div>
-      </div>
+      </m.div>
 
       {/* Target Exam Date Notice */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-surface rounded-2xl p-6 border border-border-subtle shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100/60 dark:bg-indigo-950/50 dark:border-indigo-900/50 flex items-center justify-center text-brand shrink-0">
             <Calendar className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-slate-800">
-              Exam Mode Status
-            </h3>
-            <p className="text-sm text-slate-500">
+            <h3 className="text-base font-bold text-txt-primary">Exam Mode Status</h3>
+            <p className="text-sm text-txt-secondary">
               {user?.exam_date ? (
                 <>
                   Target Exam Date:{' '}
-                  <span className="font-semibold text-slate-700">
+                  <span className="font-semibold text-txt-primary">
                     {formatIstDateFull(user.exam_date)}
                   </span>{' '}
                   (adaptive priority active)
@@ -138,7 +142,7 @@ export const DashboardPage: React.FC = () => {
         </div>
         <Link
           to="/settings"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 shrink-0"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline shrink-0"
         >
           <span>{user?.exam_date ? 'Edit date' : 'Set exam date'}</span>
           <ArrowRight className="w-4 h-4" />
@@ -170,18 +174,18 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-4">
         <Link
           to="/review"
-          className="group bg-white p-6 rounded-2xl border border-slate-200/80 hover:border-indigo-300 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          className="group bg-surface p-6 rounded-2xl border border-border-subtle hover:border-brand/40 shadow-card hover:shadow-card-hover transition-all duration-200 flex flex-col justify-between"
         >
           <div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
               <BookOpen className="w-5 h-5" />
             </div>
-            <h4 className="text-base font-semibold text-slate-900 mb-1">Daily Review</h4>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <h4 className="text-base font-bold text-txt-primary mb-1">Daily Review</h4>
+            <p className="text-xs text-txt-muted leading-relaxed">
               Complete your daily queue of due flashcards with scientifically timed intervals.
             </p>
           </div>
-          <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-emerald-600 group-hover:gap-2 transition-all">
+          <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 group-hover:gap-2 transition-all">
             <span>Review cards</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </div>
@@ -189,18 +193,18 @@ export const DashboardPage: React.FC = () => {
 
         <Link
           to="/upload"
-          className="group bg-white p-6 rounded-2xl border border-slate-200/80 hover:border-indigo-300 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          className="group bg-surface p-6 rounded-2xl border border-border-subtle hover:border-brand/40 shadow-card hover:shadow-card-hover transition-all duration-200 flex flex-col justify-between"
         >
           <div>
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-brand dark:bg-indigo-950/50 dark:text-brand flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
               <Upload className="w-5 h-5" />
             </div>
-            <h4 className="text-base font-semibold text-slate-900 mb-1">Upload Notes</h4>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <h4 className="text-base font-bold text-txt-primary mb-1">Upload Notes</h4>
+            <p className="text-xs text-txt-muted leading-relaxed">
               Drag and drop PDF or TXT notes to generate clean flashcards via AI in real time.
             </p>
           </div>
-          <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-indigo-600 group-hover:gap-2 transition-all">
+          <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-brand group-hover:gap-2 transition-all">
             <span>Upload new</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </div>
@@ -208,18 +212,18 @@ export const DashboardPage: React.FC = () => {
 
         <Link
           to="/decks"
-          className="group bg-white p-6 rounded-2xl border border-slate-200/80 hover:border-indigo-300 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          className="group bg-surface p-6 rounded-2xl border border-border-subtle hover:border-brand/40 shadow-card hover:shadow-card-hover transition-all duration-200 flex flex-col justify-between"
         >
           <div>
-            <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
               <Layers className="w-5 h-5" />
             </div>
-            <h4 className="text-base font-semibold text-slate-900 mb-1">Manage Decks</h4>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <h4 className="text-base font-bold text-txt-primary mb-1">Manage Decks</h4>
+            <p className="text-xs text-txt-muted leading-relaxed">
               Browse created decks, inspect individual questions and answers, or remove old sets.
             </p>
           </div>
-          <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-violet-600 group-hover:gap-2 transition-all">
+          <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-violet-600 dark:text-violet-400 group-hover:gap-2 transition-all">
             <span>View decks</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </div>

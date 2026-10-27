@@ -1,12 +1,28 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Brain, Lock, Mail, User as UserIcon, ArrowRight, AlertCircle } from 'lucide-react';
+import {
+  Brain,
+  Lock,
+  Mail,
+  User as UserIcon,
+  ArrowRight,
+  AlertCircle,
+  Sparkles,
+  Clock,
+  BarChart3,
+  Sun,
+  Moon,
+} from 'lucide-react';
+import { AnimatePresence, m } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { ApiClientError } from '../api/types';
-import { Spinner } from '../components/common/Spinner';
+import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
 
 export const RegisterPage: React.FC = () => {
   const { register } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [displayName, setDisplayName] = useState('');
@@ -73,143 +89,195 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex items-center justify-center gap-2.5 text-indigo-600 font-bold text-2xl tracking-tight mb-2">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-100">
+    <div className="min-h-screen grid lg:grid-cols-2 bg-app text-txt-primary">
+      {/* Left Brand Panel (Desktop) */}
+      <div className="hidden lg:flex flex-col justify-between p-12 xl:p-16 brand-gradient text-white relative overflow-hidden">
+        {/* Decorative backdrop shapes */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Top brand */}
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-lg">
             <Brain className="w-6 h-6" />
           </div>
-          <span>Recall<span className="text-slate-900">OS</span></span>
+          <span className="font-extrabold text-2xl tracking-tight">RecallOS</span>
         </div>
-        <h2 className="text-center text-2xl font-bold tracking-tight text-slate-900">
-          Create your account
-        </h2>
-        <p className="mt-1 text-center text-sm text-slate-500">
-          Already registered?{' '}
-          <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
-            Sign in here
-          </Link>
-        </p>
+
+        {/* Middle Value Props */}
+        <div className="relative z-10 space-y-8 my-auto py-8">
+          <div className="space-y-3 max-w-md">
+            <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight leading-tight">
+              Turn your notes into flashcards you remember.
+            </h1>
+            <p className="text-indigo-100 text-sm xl:text-base leading-relaxed">
+              Create your account to transform your lecture notes, text, and scanned PDFs into personalized flashcard decks.
+            </p>
+          </div>
+
+          <div className="space-y-4 max-w-lg">
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/15">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 text-white">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold">Notes to flashcards in seconds</h2>
+                <p className="text-xs text-indigo-100 mt-0.5 leading-relaxed">
+                  Upload text or scanned PDFs, or paste notes. AI extracts key definitions and concepts.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/15">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 text-white">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold">Smart review schedule</h2>
+                <p className="text-xs text-indigo-100 mt-0.5 leading-relaxed">
+                  An SM-2 based schedule shows each card again right before you would forget it.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/15">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 text-white">
+                <BarChart3 className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold">Know what to revise</h2>
+                <p className="text-xs text-indigo-100 mt-0.5 leading-relaxed">
+                  See which topics are weak and get an estimated retention for exam day.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom footer */}
+        <div className="relative z-10 text-xs text-indigo-200">
+          Designed for focused, distraction-free study sessions.
+        </div>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <div className="bg-white py-8 px-6 shadow-xl shadow-slate-200/50 rounded-2xl border border-slate-100 sm:px-10">
-          {/* Server Error Notice */}
-          {errors.server && (
-            <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3 text-rose-900 text-sm">
-              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-              <span>{errors.server}</span>
+      {/* Right Form Panel */}
+      <div className="flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-16 min-h-screen">
+        {/* Top Bar with Theme Toggle */}
+        <div className="flex justify-between items-center w-full">
+          {/* Mobile Logo */}
+          <div className="flex lg:hidden items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl brand-gradient flex items-center justify-center text-white shadow-sm">
+              <Brain className="w-5 h-5" />
             </div>
-          )}
+            <span className="font-extrabold text-xl tracking-tight text-txt-primary">
+              Recall<span className="brand-gradient-text">OS</span>
+            </span>
+          </div>
+          <div className="hidden lg:block" />
 
-          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-            {/* Display Name Field */}
-            <div>
-              <label htmlFor="displayName" className="block text-sm font-medium text-slate-700">
-                Display name
-              </label>
-              <div className="mt-1 relative rounded-xl shadow-xs">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <UserIcon className="w-4 h-4" />
-                </div>
-                <input
-                  id="displayName"
-                  name="displayName"
-                  type="text"
-                  autoComplete="name"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className={`block w-full pl-10 pr-3 py-2.5 sm:text-sm rounded-xl border ${
-                    errors.display_name
-                      ? 'border-rose-300 focus:ring-rose-500 focus:border-rose-500 bg-rose-50/20'
-                      : 'border-slate-300 focus:ring-indigo-500 focus:border-indigo-500'
-                  } transition-colors`}
-                  placeholder="Alex Rivera"
-                />
-              </div>
-              {errors.display_name && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium">{errors.display_name}</p>
-              )}
-            </div>
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="p-2 rounded-xl text-txt-secondary hover:text-txt-primary hover:bg-surface-muted transition-colors cursor-pointer"
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-5 h-5 text-amber-400" />
+            ) : (
+              <Moon className="w-5 h-5 text-slate-700" />
+            )}
+          </button>
+        </div>
 
-            {/* Email Field */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700">
-                Email address
-              </label>
-              <div className="mt-1 relative rounded-xl shadow-xs">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="w-4 h-4" />
-                </div>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={`block w-full pl-10 pr-3 py-2.5 sm:text-sm rounded-xl border ${
-                    errors.email
-                      ? 'border-rose-300 focus:ring-rose-500 focus:border-rose-500 bg-rose-50/20'
-                      : 'border-slate-300 focus:ring-indigo-500 focus:border-indigo-500'
-                  } transition-colors`}
-                  placeholder="you@college.edu"
-                />
-              </div>
-              {errors.email && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium">{errors.email}</p>
-              )}
-            </div>
+        {/* Form Container */}
+        <div className="w-full max-w-md mx-auto my-auto py-8">
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-txt-primary tracking-tight">
+              Create your account
+            </h2>
+            <p className="mt-2 text-sm text-txt-secondary">
+              Already registered?{' '}
+              <Link to="/login" className="font-semibold text-brand hover:underline">
+                Sign in here
+              </Link>
+            </p>
+          </div>
 
-            {/* Password Field */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-                Password (min 8 characters)
-              </label>
-              <div className="mt-1 relative rounded-xl shadow-xs">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={`block w-full pl-10 pr-3 py-2.5 sm:text-sm rounded-xl border ${
-                    errors.password
-                      ? 'border-rose-300 focus:ring-rose-500 focus:border-rose-500 bg-rose-50/20'
-                      : 'border-slate-300 focus:ring-indigo-500 focus:border-indigo-500'
-                  } transition-colors`}
-                  placeholder="••••••••"
-                />
-              </div>
-              {errors.password && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium">{errors.password}</p>
-              )}
-            </div>
-
-            <div>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 border border-transparent rounded-xl shadow-md shadow-indigo-100 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all disabled:opacity-60"
+          {/* Server Error Alert */}
+          <AnimatePresence>
+            {errors.server && (
+              <m.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-900/60 flex items-start gap-3 text-rose-900 dark:text-rose-200 text-sm shadow-xs"
               >
-                {isSubmitting ? (
-                  <>
-                    <Spinner size="sm" className="text-white" />
-                    <span>Creating account...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Create account</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
+                <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                <span>{errors.server}</span>
+              </m.div>
+            )}
+          </AnimatePresence>
+
+          {/* Form */}
+          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+            <Input
+              id="displayName"
+              name="displayName"
+              type="text"
+              label="Display name"
+              autoComplete="name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              error={errors.display_name}
+              leftIcon={<UserIcon className="w-4 h-4" />}
+              placeholder="Alex Rivera"
+            />
+
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              label="Email address"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              error={errors.email}
+              leftIcon={<Mail className="w-4 h-4" />}
+              placeholder="you@college.edu"
+            />
+
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              label="Password"
+              isPassword
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              error={errors.password}
+              helperText="Must be at least 8 characters"
+              leftIcon={<Lock className="w-4 h-4" />}
+              placeholder="••••••••"
+            />
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              isLoading={isSubmitting}
+              rightIcon={<ArrowRight className="w-4 h-4" />}
+              className="w-full mt-2"
+            >
+              Create account
+            </Button>
           </form>
+        </div>
+
+        {/* Bottom space or copyright */}
+        <div className="text-center text-xs text-txt-muted py-2">
+          RecallOS &copy; {new Date().getFullYear()} &bull; Spaced Repetition Study Engine
         </div>
       </div>
     </div>
