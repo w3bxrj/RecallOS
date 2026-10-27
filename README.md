@@ -347,18 +347,7 @@ The frontend will run at `http://localhost:5173`. When running locally in develo
 
 ---
 
-## 11. Demo Credentials
-
-A pre-seeded demonstration account is available for immediate testing:
-
-- **Email:** `testuser@example.com`
-- **Password:** `password123`
-
-*Note on Seed Data:* The demo database was populated relative to the reference seeding date (**27 Oct 2026**). As real-world time advances, the active review streak and exam countdown will drift relative to that reference point. Uploading your own document creates an isolated deck and starts a fresh generation and review cycle.
-
----
-
-## 12. Testing
+## 11. Testing
 
 The codebase includes automated unit and integration tests across both the backend and frontend.
 
@@ -392,7 +381,7 @@ npm run build
 
 ---
 
-## 13. Security and Engineering Decisions
+## 12. Security and Engineering Decisions
 
 - **Bcrypt Password Hashing:** User passwords are encrypted with individual salts using `bcrypt.hashpw` before database storage.
 - **Stateless JWT Tokens:** Authentication uses HMAC-SHA256 JWT tokens with an enforced 24-hour expiration window.
@@ -411,7 +400,7 @@ npm run build
 
 ---
 
-## 14. Known Limitations
+## 13. Known Limitations
 
 1. **Single-Worker Concurrency:** In-memory rate limiting and WebSocket connection tracking (`ConnectionManager`) require the backend to run as a single worker process (`--workers 1`). Running multiple worker instances without an external Redis broker causes WebSocket disconnects and inconsistent rate limit buckets.
 2. **Free-Tier Host Latency:** Render's free tier spins down idle instances after 15 minutes, introducing a 30 to 60-second cold start delay on the first inbound request.
@@ -423,7 +412,7 @@ npm run build
 
 ---
 
-## 15. Future Work
+## 14. Future Work
 
 The following features represent planned enhancements that are **not implemented** in the current release:
 
@@ -436,7 +425,7 @@ The following features represent planned enhancements that are **not implemented
 
 ---
 
-## 16. AI Usage
+## 15. AI Usage
 
 In accordance with academic and submission integrity guidelines, AI assistance was utilized in the following areas during the design and development of RecallOS:
 
@@ -449,22 +438,3 @@ In accordance with academic and submission integrity guidelines, AI assistance w
 - **Architecture References:** Architectural trade-offs and decision logs are documented in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ---
-
-## 17. Screenshots
-
-- **Dashboard & Analytics:**  
-  *TODO: Add screenshot of Analytics Dashboard at `docs/screenshots/dashboard.png`*
-
-- **Document Upload & Live WebSocket Stream:**  
-  *TODO: Add screenshot of live generation feed at `docs/screenshots/live_generation.png`*
-
-- **Active Recall Review Session:**  
-  *TODO: Add screenshot of SM-2 review card at `docs/screenshots/review.png`*
-
----
-
-## 18. License and Credits
-
-- **License:** Open-source educational project developed for academic submission.
-- **Credits & Dependencies:** Built using FastAPI, SQLAlchemy, Alembic, PyPDF, React, Vite, Tailwind CSS, Recharts, Lucide React, and Motion.
-- **Originality:** All application routing, database models, SM-2 scheduling algorithms, thread-safe WebSocket publisher implementations, and frontend interfaces were authored directly for RecallOS; no external commercial flashcard codebase was copied.
