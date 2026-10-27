@@ -31,6 +31,8 @@ def setup_database(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, Non
     Base.metadata.create_all(bind=test_engine)
     monkeypatch.setattr("app.core.db.SessionLocal", TestingSessionLocal)
     monkeypatch.setattr("app.services.generator.SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr("app.services.generator.DEFAULT_VISION_DELAY", 0.0)
+    monkeypatch.setattr("app.services.generator.DEFAULT_TEXT_DELAY", 0.0)
     monkeypatch.setattr("app.main.SessionLocal", TestingSessionLocal)
     monkeypatch.setattr("app.routers.ws.SessionLocal", TestingSessionLocal, raising=False)
     yield

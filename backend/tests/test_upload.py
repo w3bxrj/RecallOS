@@ -56,11 +56,30 @@ class MockLLMSuccess(LLMClient):
             }
         ]
 
+    def generate_cards_from_pdf(self, pdf_bytes: bytes, page_range_label: str) -> list[dict]:
+        return self.generate_cards("")
+
 
 class MockLLMEmpty(LLMClient):
     """Mock LLM returning empty cards."""
     def generate_cards(self, chunk_text: str) -> list[dict]:
         return []
+
+    def generate_cards_from_pdf(self, pdf_bytes: bytes, page_range_label: str) -> list[dict]:
+        return []
+
+
+class MockLLMInvalidJson(LLMClient):
+    """Mock LLM that raises an exception on vision requests (simulating invalid JSON)."""
+    def __init__(self):
+        self.attempts = 0
+
+    def generate_cards(self, chunk_text: str) -> list[dict]:
+        return []
+
+    def generate_cards_from_pdf(self, pdf_bytes: bytes, page_range_label: str) -> list[dict]:
+        self.attempts += 1
+        raise ValueError("Invalid JSON returned from LLM")
 
 
 def test_reject_unsupported_file_extension(client: TestClient) -> None:
@@ -99,8 +118,9 @@ def test_reject_empty_file(client: TestClient) -> None:
     assert res.json()["error"]["code"] == "EMPTY_FILE"
 
 
-def test_upload_scanned_pdf_fails_job(client: TestClient) -> None:
-    """A PDF with under 200 characters of extractable text fails the job with the exact message."""
+def test_upload_scanned_pdf_fails_job_when_zero_cards(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A scanned PDF where every chunk returns nothing fails with the exact PRD message."""
+    monkeypatch.setattr("app.services.generator.get_llm_client", lambda: MockLLMEmpty())
     _, token = create_user_and_token(client, "scanned@example.com")
     blank_pdf = create_sample_pdf_bytes([""])
 
@@ -118,7 +138,94 @@ def test_upload_scanned_pdf_fails_job(client: TestClient) -> None:
     assert job_res.status_code == 200
     job_data = job_res.json()
     assert job_data["status"] == "failed"
-    assert "This looks like a scanned PDF. Please upload a text-based PDF." in job_data["error_message"]
+    assert job_data["is_vision"] is True
+    assert "We could not find readable study content in this PDF. Try a clearer scan or a text-based PDF." in job_data["error_message"]
+
+
+def test_upload_scanned_pdf_success_generates_cards(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A scanned PDF in vision mode generates cards, sets is_vision=True, and completes ready."""
+    monkeypatch.setattr("app.services.generator.get_llm_client", lambda: MockLLMSuccess())
+    _, token = create_user_and_token(client, "scanned_success@example.com")
+    blank_pdf = create_sample_pdf_bytes(["", ""])
+
+    res = client.post(
+        "/api/uploads",
+        headers={"Authorization": f"Bearer {token}"},
+        data={"title": "Scanned Chemistry Notes"},
+        files={"file": ("scanned_chemistry.pdf", blank_pdf, "application/pdf")},
+    )
+    assert res.status_code == 200
+    job_id = res.json()["job_id"]
+    deck_id = res.json()["deck_id"]
+
+    job_res = client.get(f"/api/jobs/{job_id}", headers={"Authorization": f"Bearer {token}"})
+    assert job_res.status_code == 200
+    job_data = job_res.json()
+    assert job_data["status"] == "ready"
+    assert job_data["is_vision"] is True
+    assert job_data["cards_created"] >= 1
+
+
+def test_vision_chunk_invalid_json_is_skipped(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A vision chunk returning invalid JSON is skipped via chunk_failed; job fails if 0 total cards."""
+    mock_llm = MockLLMInvalidJson()
+    monkeypatch.setattr("app.services.generator.get_llm_client", lambda: mock_llm)
+    _, token = create_user_and_token(client, "invalid_json@example.com")
+    blank_pdf = create_sample_pdf_bytes([""])
+
+    res = client.post(
+        "/api/uploads",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"file": ("scanned_doc.pdf", blank_pdf, "application/pdf")},
+    )
+    job_id = res.json()["job_id"]
+    job_res = client.get(f"/api/jobs/{job_id}", headers={"Authorization": f"Bearer {token}"})
+    job_data = job_res.json()
+    assert job_data["status"] == "failed"
+    assert mock_llm.attempts >= 1
+    assert "We could not find readable study content in this PDF." in job_data["error_message"]
+
+
+def test_vision_chunk_empty_list_is_not_an_error(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A chunk returning an empty list (e.g. cover page) is not an error; succeeding chunks create cards and job is ready."""
+    class MockLLMCoverPageThenCards(LLMClient):
+        def __init__(self):
+            self.call_count = 0
+
+        def generate_cards(self, chunk_text: str):
+            return []
+
+        def generate_cards_from_pdf(self, pdf_bytes: bytes, page_range_label: str):
+            self.call_count += 1
+            if self.call_count == 1:
+                # Chunk 1: cover page -> empty list
+                return []
+            # Chunk 2: study notes -> cards
+            return [
+                {
+                    "topic": "Mathematics",
+                    "question": "What is Euler's formula?",
+                    "answer": "e^(i*pi) + 1 = 0",
+                    "distractors": ["e = mc^2", "a^2 + b^2 = c^2", "F = ma"],
+                }
+            ]
+
+    # Create a 6-page PDF (split into 2 chunks: 4 pages and 2 pages)
+    six_page_pdf = create_sample_pdf_bytes([""] * 6)
+    monkeypatch.setattr("app.services.generator.get_llm_client", lambda: MockLLMCoverPageThenCards())
+    _, token = create_user_and_token(client, "cover_page@example.com")
+
+    res = client.post(
+        "/api/uploads",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"file": ("notes_with_cover.pdf", six_page_pdf, "application/pdf")},
+    )
+    job_id = res.json()["job_id"]
+    job_res = client.get(f"/api/jobs/{job_id}", headers={"Authorization": f"Bearer {token}"})
+    job_data = job_res.json()
+    assert job_data["status"] == "ready"
+    assert job_data["cards_created"] == 1
+    assert job_data["is_vision"] is True
 
 
 def test_upload_success_and_poll_job(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

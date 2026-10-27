@@ -1,4 +1,4 @@
-from typing import Protocol, List, Dict, Any
+from typing import Protocol, List, Dict, Any, Optional
 
 
 class JobEventPublisher(Protocol):
@@ -11,6 +11,7 @@ class JobEventPublisher(Protocol):
         total_chunks: int,
         new_cards: List[Dict[str, Any]],
         cards_created: int,
+        page_range: Optional[str] = None,
     ) -> None:
         """Invoked when a chunk finishes processing and cards are created."""
         ...
@@ -52,6 +53,7 @@ class NullJobEventPublisher:
         total_chunks: int,
         new_cards: List[Dict[str, Any]],
         cards_created: int,
+        page_range: Optional[str] = None,
     ) -> None:
         pass
 

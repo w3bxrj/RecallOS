@@ -14,7 +14,6 @@ class LLMClient(ABC):
         """
         pass
 
-    @abstractmethod
     def generate_cards_from_pdf(
         self, pdf_bytes: bytes, page_range_label: str
     ) -> List[Dict[str, Any]]:
@@ -22,4 +21,4 @@ class LLMClient(ABC):
 
         Returns a list of raw card dictionaries, or an empty list if no study content.
         """
-        pass
+        return []

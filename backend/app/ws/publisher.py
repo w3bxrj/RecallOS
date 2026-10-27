@@ -46,6 +46,7 @@ class WebSocketJobEventPublisher(JobEventPublisher):
         total_chunks: int,
         new_cards: List[Dict[str, Any]],
         cards_created: int,
+        page_range: Optional[str] = None,
     ) -> None:
         """Broadcasts chunk_done event with sanitized cards (NO distractors)."""
         try:
@@ -59,14 +60,18 @@ class WebSocketJobEventPublisher(JobEventPublisher):
                 }
                 sanitized_cards.append(card_data)
 
+            payload_data: Dict[str, Any] = {
+                "chunk_index": chunk_index,
+                "total_chunks": total_chunks,
+                "new_cards": sanitized_cards,
+                "cards_created": cards_created,
+            }
+            if page_range:
+                payload_data["page_range"] = page_range
+
             payload = {
                 "type": "chunk_done",
-                "data": {
-                    "chunk_index": chunk_index,
-                    "total_chunks": total_chunks,
-                    "new_cards": sanitized_cards,
-                    "cards_created": cards_created,
-                },
+                "data": payload_data,
             }
             self._broadcast_threadsafe(job_id, payload)
         except Exception as exc:

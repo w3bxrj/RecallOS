@@ -71,6 +71,9 @@ async def ws_generate(websocket: WebSocket, job_id: int) -> None:
             "total_chunks": job.total_chunks,
             "cards_created": job.cards_created,
             "error_message": job.error_message,
+            "notice": job.notice,
+            "is_vision": job.is_vision,
+            "vision_mode": job.is_vision,
         }
         job_status = job.status
         deck_id = job.deck_id
