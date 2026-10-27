@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     MAX_UPLOAD_MB: int = 10
     MAX_VISION_PAGES: int = 32
     DAILY_CARD_LIMIT: int = 50
-    ENABLE_DUEL: bool = True
+    ENABLE_DUEL: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

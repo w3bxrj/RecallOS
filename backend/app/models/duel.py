@@ -5,6 +5,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 
+# NOTE: The 'duels' model and table are reserved for the planned future
+# real-time Quiz Duel feature (PRD section 9.2). This feature is not implemented
+# in the current submission. Retained to preserve database schema integrity.
 class Duel(Base):
     __tablename__ = "duels"
 

@@ -30,4 +30,4 @@ services:
       - key: DAILY_CARD_LIMIT
         sync: false
       - key: ENABLE_DUEL
-        sync: false
+        value: "false"

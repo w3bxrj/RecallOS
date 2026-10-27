@@ -27,4 +27,5 @@ class Deck(Base):
     user: Mapped["User"] = relationship("User", back_populates="decks")
     cards: Mapped[List["Card"]] = relationship("Card", back_populates="deck", cascade="all, delete-orphan")
     jobs: Mapped[List["Job"]] = relationship("Job", back_populates="deck")
+    # duels is reserved for planned future real-time Quiz Duel feature (PRD 9.2)
     duels: Mapped[List["Duel"]] = relationship("Duel", back_populates="deck", cascade="all, delete-orphan")

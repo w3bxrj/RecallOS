@@ -20,7 +20,7 @@ This document details the configuration and deployment steps for RecallOS on Ren
 | `MAX_UPLOAD_MB` | Maximum allowed file upload size in MB | `10` |
 | `MAX_VISION_PAGES` | Maximum pages processed for scanned PDFs in vision mode | `32` |
 | `DAILY_CARD_LIMIT` | Default daily review queue limit | `50` |
-| `ENABLE_DUEL` | Feature flag for multiplayer quiz duel | `true` |
+| `ENABLE_DUEL` | Feature flag reserved for planned multiplayer quiz duel (keep disabled) | `false` |
 
 ---
 
