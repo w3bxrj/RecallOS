@@ -1,6 +1,7 @@
+from dataclasses import dataclass
 import io
 import logging
-from typing import List
+from typing import List, Optional, Tuple
 import pypdf
 
 from app.core.config import settings
@@ -9,10 +10,23 @@ from app.core.errors import AppException
 logger = logging.getLogger(__name__)
 
 
-def validate_and_extract_text(file_bytes: bytes, filename: str) -> str:
-    """Validates uploaded file size and content magic bytes, and extracts text.
+@dataclass
+class ExtractionResult:
+    """Result of document validation and text/vision mode extraction."""
+    mode: str  # "text" or "vision"
+    text: str = ""
+    page_count: int = 0
 
-    Supports text-based PDF and UTF-8 TXT files.
+
+def extract_and_detect_mode(file_bytes: bytes, filename: str) -> ExtractionResult:
+    """Validates uploaded file and detects whether to process via text or vision mode.
+
+    Detection rule:
+    - Text files (.txt) are processed in text mode (min 200 chars).
+    - PDFs are inspected: average extracted characters per page is computed.
+      If avg_chars_per_page >= 150, text mode is chosen.
+      If avg_chars_per_page < 150, vision mode is chosen.
+    - Preserves errors for corrupt, encrypted, empty, or unsupported files.
     """
     max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
     if len(file_bytes) > max_bytes:
@@ -49,6 +63,14 @@ def validate_and_extract_text(file_bytes: bytes, filename: str) -> str:
                     message="Password-protected PDFs are not supported. Please upload an unencrypted file.",
                 )
 
+            page_count = len(reader.pages)
+            if page_count == 0:
+                raise AppException(
+                    status_code=400,
+                    code="CORRUPT_PDF",
+                    message="The uploaded PDF file is corrupt or unreadable.",
+                )
+
             extracted_pages: List[str] = []
             for page in reader.pages:
                 page_text = page.extract_text()
@@ -66,15 +88,18 @@ def validate_and_extract_text(file_bytes: bytes, filename: str) -> str:
                 message="The uploaded PDF file is corrupt or unreadable.",
             )
 
-        # Scanned PDF check (< 200 characters)
-        if len(full_text) < 200:
-            raise AppException(
-                status_code=400,
-                code="SCANNED_PDF",
-                message="This looks like a scanned PDF. Please upload a text-based PDF.",
-            )
+        # Compute average extracted characters per page
+        avg_chars_per_page = len(full_text) / page_count
 
-        return full_text
+        if avg_chars_per_page >= 150:
+            return ExtractionResult(mode="text", text=full_text, page_count=page_count)
+        else:
+            logger.info(
+                "PDF '%s' has avg %.1f chars/page (< 150). Switching to VISION MODE.",
+                filename,
+                avg_chars_per_page,
+            )
+            return ExtractionResult(mode="vision", text=full_text, page_count=page_count)
 
     elif lower_name.endswith(".txt"):
         try:
@@ -93,7 +118,7 @@ def validate_and_extract_text(file_bytes: bytes, filename: str) -> str:
                 message="The uploaded text is under 200 characters, which is insufficient to generate flashcards.",
             )
 
-        return full_text
+        return ExtractionResult(mode="text", text=full_text, page_count=1)
 
     else:
         raise AppException(
@@ -101,6 +126,67 @@ def validate_and_extract_text(file_bytes: bytes, filename: str) -> str:
             code="UNSUPPORTED_FILE_TYPE",
             message="Only PDF (.pdf) and Text (.txt) files are supported.",
         )
+
+
+def validate_and_extract_text(file_bytes: bytes, filename: str) -> str:
+    """Backward-compatible helper that validates file and extracts text.
+
+    For text mode, returns the extracted text string.
+    For vision mode, returns the partial text or empty string.
+    """
+    result = extract_and_detect_mode(file_bytes, filename)
+    return result.text
+
+
+def split_pdf_into_chunks(
+    file_bytes: bytes,
+    pages_per_chunk: int = 4,
+    max_pages: Optional[int] = None,
+) -> Tuple[List[Tuple[bytes, str]], Optional[str]]:
+    """Splits a PDF into sub-PDFs of up to pages_per_chunk using pypdf only.
+
+    Caps at max_pages (default settings.MAX_VISION_PAGES).
+    If the PDF has more pages, processes only the first max_pages and generates a notice.
+    Returns:
+        (chunks, notice)
+        where chunks is a list of (sub_pdf_bytes, page_range_label)
+        and notice is "Only the first N pages were processed" or None.
+    """
+    if max_pages is None:
+        max_pages = settings.MAX_VISION_PAGES
+
+    reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+    total_pages = len(reader.pages)
+    if total_pages == 0:
+        return [], None
+
+    notice: Optional[str] = None
+    pages_to_process = total_pages
+    if total_pages > max_pages:
+        pages_to_process = max_pages
+        notice = f"Only the first {max_pages} pages were processed"
+
+    chunks: List[Tuple[bytes, str]] = []
+    for start_idx in range(0, pages_to_process, pages_per_chunk):
+        end_idx = min(start_idx + pages_per_chunk, pages_to_process)
+        writer = pypdf.PdfWriter()
+        for page_idx in range(start_idx, end_idx):
+            writer.add_page(reader.pages[page_idx])
+
+        buf = io.BytesIO()
+        writer.write(buf)
+        sub_pdf_bytes = buf.getvalue()
+
+        start_page = start_idx + 1
+        end_page = end_idx
+        if start_page == end_page:
+            label = f"Pages {start_page}"
+        else:
+            label = f"Pages {start_page}-{end_page}"
+
+        chunks.append((sub_pdf_bytes, label))
+
+    return chunks, notice
 
 
 def chunk_text(
