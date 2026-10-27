@@ -1,312 +1,470 @@
 # RecallOS
 
-> **An AI-powered spaced repetition learning operating system with adaptive exam scheduling and live generation streaming.**
+> An AI-powered spaced repetition learning platform with adaptive exam scheduling and live generation streaming.
 
 ---
 
-## Problem Statement
+## Table of Contents
 
-Students, researchers, and technical professionals read hundreds of pages of notes and documentation, yet research shows that humans forget over **70% of newly learned information within 48 hours** (the Ebbinghaus forgetting curve). 
-
-While active recall through spaced repetition is scientifically proven to halt memory decay, existing tools face three fundamental friction points:
-1. **High manual creation overhead:** Crafting high-quality, atomic flashcards with challenging options from raw lecture notes is tedious and time-consuming, causing most learners to quit within weeks.
-2. **Static scheduling disconnected from deadlines:** Traditional algorithms (like standard Anki SM-2) treat cards uniformly regardless of whether a student's high-stakes exam is in 5 days or 5 months.
-3. **Black-box retention metrics:** Learners lack visibility into their actual retention probability and workload forecast leading up to target exam milestones.
-
----
-
-## Target Users
-
-- **University & College Students:** Preparing for dense semester exams across subjects like Computer Science, Biology, and Engineering.
-- **Competitive Exam Candidates:** Aspirants preparing for GATE, GRE, USMLE, or UPSC requiring rigorous revision across dozens of technical topics.
-- **Engineers & Technical Professionals:** Developers studying system design, algorithms, and cloud certifications while balancing full-time work.
-- **Lifelong Learners:** Individuals reading non-fiction books and research papers who want long-term knowledge retention with minimal manual friction.
-
----
-
-## Solution
-
-RecallOS replaces the friction of manual flashcard creation with an end-to-end automated retention pipeline:
-
-1. **Upload Notes (PDF / TXT):** Upload dense notes or summaries up to 10 MB.
-2. **Real-Time Streaming Generation:** Google Gemini parses the notes into semantic chunks, generating atomic question-answer cards with high-quality distractors. Live WebSocket streaming visualizes chunk-by-chunk progress in real-time.
-3. **SM-2 Spaced Repetition Engine:** An implementation of the SuperMemo-2 algorithm schedules daily review queues based on individual card recall performance (ratings 1 to 5).
-4. **Adaptive Exam Mode:** When an exam date is set, RecallOS adjusts review priority dynamically, boosting weaker topics (<60% accuracy) and high-decay cards ahead of test day.
-5. **Interactive Analytics Dashboard:** Real-time visibility into predicted recall on exam day, 30-day review workload forecasts, 7-day consistency streaks, and topic accuracy benchmarks.
+- [1. Project Name](#1-project-name)
+- [2. Problem Statement](#2-problem-statement)
+- [3. Target Users](#3-target-users)
+- [4. Solution](#4-solution)
+- [5. Key Features](#5-key-features)
+- [6. Tech Stack](#6-tech-stack)
+- [7. Architecture](#7-architecture)
+- [8. Local Setup](#8-local-setup)
+- [9. Environment Variables](#9-environment-variables)
+- [10. Deployment](#10-deployment)
+- [11. Demo Credentials](#11-demo-credentials)
+- [12. Testing](#12-testing)
+- [13. Security and Engineering Decisions](#13-security-and-engineering-decisions)
+- [14. Known Limitations](#14-known-limitations)
+- [15. Future Work](#15-future-work)
+- [16. AI Usage](#16-ai-usage)
+- [17. Screenshots](#17-screenshots)
+- [18. License and Credits](#18-license-and-credits)
 
 ---
 
-## Key Features
+## 1. Project Name
 
-### 1. Upload to Cards with Live WebSocket Progress
-- Supports both PDF and plain text (TXT) files up to 10 MB.
-- Splits large documents into overlapping semantic chunks with deduplication.
-- **Dual-Channel Monitoring:** Uses live WebSockets (`/ws/generate/{job_id}`) for instant streaming progress with automatic HTTP polling fallback.
-- **Resilient Reconnection:** Handles network dropouts with exponential backoff and terminal state validation.
-- Live card preview stream allows immediate inspection of questions, answers, and distractors as each chunk completes.
-
-### 2. SM-2 Spaced Repetition Review
-- Full SM-2 implementation adjusting card intervals, repetitions, and ease factors:
-  - Rating `1`: Complete blackout (resets repetitions and interval to 1 day).
-  - Rating `2`: Incorrect response; recalled after seeing answer.
-  - Rating `3`: Correct response recalled with serious difficulty.
-  - Rating `4`: Correct response with hesitation.
-  - Rating `5`: Perfect, immediate recall.
-- **Daily Queue Management:** Enforces a configurable daily card limit (default 50) with indicators showing extra due cards beyond the daily cap.
-
-### 3. Adaptive Exam Mode
-- Configure target exam dates directly in user settings.
-- Automatically computes remaining days to exam and elevates revision priority for:
-  - Topics performing below the 60% accuracy threshold.
-  - Cards whose projected retention will decay significantly prior to exam day.
-
-### 4. Interactive Learning Analytics Dashboard
-- **5 Overview Stat Cards:** Due today queue, review streak, total deck cards, exam countdown, and predicted recall on exam day.
-- **Predicted Retention on Exam Day:** Uses an exponential forgetting curve proxy ($R = \exp(-t / S)$) to calculate estimated recall if revision ceased today. Distinctly handles null cases ("Set exam date", "Exam passed", "Review cards first").
-- **Topic Accuracy Chart:** Horizontal bar chart with 60% proficiency reference line, SVG striped pattern for accessible weak-topic identification, and truncated axis labels with full tooltips.
-- **30-Day Workload Forecast:** Exact 30-day daily due forecast with overdue cards folded into Day 1 ("Today") and mobile-friendly tick spacing.
-- **7-Day Review History:** Histogram displaying daily study volume leading up to today.
-- **Zero UTC Shifts:** Safe IST date string formatting prevents timezone day-shifting bugs.
-- **Performance Optimized:** Chart libraries (Recharts) are isolated into a separate lazy-loaded bundle chunk wrapped in an `ErrorBoundary` with a reload fallback.
+**RecallOS**  
+An AI-powered spaced repetition learning platform that transforms dense study notes into atomic active-recall flashcards, schedules daily revisions using the SM-2 algorithm, and dynamically prioritizes weak topics ahead of exam deadlines.
 
 ---
 
-## Tech Stack
+## 2. Problem Statement
 
-| Layer | Technology | Details |
-| :--- | :--- | :--- |
-| **Backend** | Python 3.13 | High-performance asynchronous core |
-| **Framework** | FastAPI | RESTful APIs, OpenAPI docs & native WebSocket endpoints |
-| **Database** | PostgreSQL / SQLite | Neon serverless PostgreSQL (production) / SQLite (local dev) |
-| **ORM** | SQLAlchemy 2.0 | Declarative models with connection pooling and pre-ping |
-| **LLM Provider** | Google Gemini (Configurable) | Structured JSON schema generation via Gemini API |
-| **PDF Extraction** | PyPDF | Fast local text extraction without external binaries |
-| **Testing** | Pytest & Starlette TestClient | 117 unit and integration tests |
-| **Frontend** | React 18 & TypeScript | Strict type safety and component modularity |
-| **Build Tool** | Vite | Lightning-fast HMR and bundle code-splitting |
-| **Styling** | Tailwind CSS | Utility-first responsive design with custom animations |
-| **Charts** | Recharts | Interactive SVG data visualizations (lazy-loaded) |
-| **Icons** | Lucide React | Accessible, lightweight icon set |
+Students and self-directed learners face three core bottlenecks when studying technical coursework:
+1. **Memory Decay:** Humans forget the majority of unreviewed material within 48 hours of reading it (Ebbinghaus forgetting curve).
+2. **Creation Friction:** Manually writing effective, atomic flashcards with challenging distractors from lecture notes takes hours, causing most students to abandon spaced repetition early.
+3. **Uncalibrated Schedules:** Existing flashcard tools schedule reviews on static intervals that ignore upcoming exam deadlines, leaving students with no guidance on which topics are weak or what to revise on any given day leading up to an exam.
 
 ---
 
-## Architecture
+## 3. Target Users
+
+- **College & University Students:** Engineering, medical, and science students preparing for semester examinations with lecture slides, textbook excerpts, and laboratory notes.
+- **Bootcamp & Technical Candidates:** Learners studying computer science fundamentals, system design, and algorithms for technical interviews.
+- **Exam Preparation Aspirants:** Candidates preparing for competitive exams who possess notes in text or PDF formats (including scanned, photographed, or handwritten-style PDFs).
+
+---
+
+## 4. Solution
+
+RecallOS provides an automated pipeline that ingests study notes (PDF or plain text), partitions them into semantic chunks, and generates atomic multiple-choice flashcards using Google Gemini. The generation progress streams to the student in real time over WebSockets with an automatic polling fallback. Daily study sessions are driven by an implementation of the SuperMemo SM-2 algorithm. When a target exam date is configured, RecallOS activates Exam Mode: review intervals are automatically capped so all cards are seen prior to the exam, and the daily review queue dynamically prioritizes overdue cards and topics where past accuracy falls below 60%.
+
+---
+
+## 5. Key Features
+
+- **Document Upload & Format Support:**
+  - Ingestion of text PDFs, plain text (`.txt`), and scanned PDFs up to `MAX_UPLOAD_MB` (default 10 MB).
+  - Duplicate upload prevention using SHA-256 content hashing (`Deck.file_hash`). Uploading an identical document returns HTTP 409 with the existing deck ID.
+- **Scanned PDF Gemini Vision Processing:**
+  - Scanned or image-heavy PDFs (averaging fewer than 150 extracted text characters per page) automatically trigger Vision Mode.
+  - Sub-PDFs are sliced purely in memory with `pypdf.PdfWriter` (4 pages per chunk) and transmitted as base64-encoded PDF payloads to the Gemini API.
+  - Capped at `MAX_VISION_PAGES` (default 32 pages, max 8 chunks) with an enforced 6-second cooldown between chunks to respect free-tier rate limits. A user notification indicates when pages beyond the cap are skipped.
+- **Background Generation with Real-Time WebSocket Streaming:**
+  - Card extraction runs asynchronously in a background worker task.
+  - Real-time events (`snapshot`, `chunk_done`, `chunk_failed`, `ready`, `failed`) are broadcast to `/ws/generate/{job_id}`.
+  - Automatic fallback to HTTP polling (`GET /api/jobs/{job_id}`) if the WebSocket connection fails to establish or disconnects.
+- **SM-2 Spaced Repetition Review Engine:**
+  - 4 review ratings: **Again** (1), **Hard** (2), **Good** (3), **Easy** (4).
+  - Review buttons display predicted next intervals before the student submits a rating.
+  - Idempotent submission: clients pass a unique `request_id`; resubmissions return the existing review result without modifying repetition counters or ease factors.
+  - Daily review queue is bounded by `DAILY_CARD_LIMIT` (default 50), displaying an indicator for any remaining cards due today.
+- **Adaptive Exam Mode:**
+  - Configured via target exam date in Settings.
+  - **Interval Capping:** Next due dates are capped by `apply_exam_mode_cap`:
+    $$\text{exam\_cap} = \text{exam\_date} - 1 \text{ day}$$
+    $$\text{due\_date} = \max(\text{review\_date} + 1, \min(\text{computed\_due\_date}, \text{exam\_cap}))$$
+  - **Queue Prioritization:** Due cards are sorted by study urgency:
+    $$\text{priority} = (1.0 - \text{topic\_accuracy}) \times 0.6 + \text{overdue\_days\_normalised} \times 0.4$$
+    where $\text{topic\_accuracy}$ is calculated from reviews over the last 30 days (ratings 3 and 4 count as correct; neutral 0.5 used if $< 5$ reviews), and $\text{overdue\_days\_normalised} = \min(1.0, \max(0, \text{days\_overdue}) / 30.0)$.
+- **Analytics Dashboard:**
+  - **Overview Stats:** Active review streak, cards due today, total library cards, exam countdown, and estimated exam-day retention.
+  - **Estimated Retention on Exam Day:** Computed via Ebbinghaus decay approximation:
+    $$R_i = \exp\left(-\frac{t_i}{S_i}\right)$$
+    where $t_i = \max(0, (\text{exam\_date} - \text{last\_reviewed\_date}).\text{days})$ and $S_i = \max(\text{interval\_days}, 1)$. Expressed as the average recall percentage across reviewed cards. *Note: this metric is an estimate of memory state assuming no further revision occurs between now and the exam.*
+  - **Topic Accuracy Chart:** Horizontal bar chart displaying accuracy per topic with a 60% proficiency reference line and accessible striped patterns for weak topics.
+  - **Weak Topics List:** Explicit listing of topics performing below the 60% benchmark.
+  - **30-Day Workload Forecast:** Bar chart projecting daily due counts across the next 30 days, folding overdue cards into Day 1.
+  - **7-Day Review History:** Daily review volume for the preceding 7 days.
+- **JWT Authentication & Data Isolation:**
+  - Passwords hashed with bcrypt. Stateless HMAC-SHA256 JWT tokens.
+  - All database queries enforce user tenancy (`where(Model.user_id == current_user.id)`). Attempting to access another user's deck, card, or job returns HTTP 404.
+- **IST Date Consistency:**
+  - Date boundaries, due calculations, and streak evaluations use Indian Standard Time (UTC+5:30) on both backend (`app.core.time`) and frontend (`Intl.DateTimeFormat` with `Asia/Kolkata`), preventing date-shifting bugs around midnight UTC.
+
+---
+
+## 6. Tech Stack
+
+### Backend
+- **Language:** Python 3.13.7
+- **Framework:** FastAPI `0.115.5`
+- **ASGI Server:** Uvicorn `0.32.1`
+- **Database ORM:** SQLAlchemy `2.0.36`
+- **Database Migrations:** Alembic `1.14.0`
+- **Data Validation & Settings:** Pydantic `2.10.3`, Pydantic Settings `2.6.1`
+- **Password Hashing:** Bcrypt `4.2.1`
+- **Authentication:** PyJWT `2.10.1`
+- **PDF Extraction:** PyPDF `5.1.0`
+- **HTTP Client:** HTTPX `0.28.1`
+- **Testing:** Pytest `8.3.4`
+- **Database Driver:** `psycopg2-binary 2.9.10` (production PostgreSQL), SQLite (local development)
+- **AI Model Integration:** Google Gemini API configured via the `GEMINI_MODEL` environment variable (model names are not hardcoded in application logic to accommodate Google's model retirement lifecycle).
+
+### Frontend
+- **Framework & Language:** React `18.3.1`, TypeScript `5.7.2`
+- **Build Tool:** Vite `6.0.7`
+- **Routing:** React Router DOM `6.28.0`
+- **Styling:** Tailwind CSS `3.4.17`, PostCSS `8.4.49`, Autoprefixer `10.4.20`
+- **Design System Tokens:** Pure CSS variables with light and dark themes
+- **Icons:** Lucide React `0.469.0`
+- **Animations:** Motion `14.7.0` (using `motion/react`)
+- **Typography:** `@fontsource-variable/inter 5.3.0` (self-hosted Latin subset)
+- **Data Visualization:** Recharts `2.15.0` (code-split and lazy-loaded)
+- **Unit Testing:** Vitest `5.0.5`
+
+---
+
+## 7. Architecture
+
+### System Flow Diagram
 
 ```mermaid
 flowchart TB
-    subgraph Client["Frontend (React 18 + Vite)"]
-        Browser["User Browser"]
-        UI["Dashboard / Review / Upload"]
+    subgraph Client["Client Browser (React 18 + TypeScript)"]
+        UI["RecallOS SPA (Tailwind + CSS Tokens)"]
         WSClient["WebSocket Client (useGenerationJob)"]
         HTTPClient["Fetch API Client (api/client.ts)"]
     end
 
-    subgraph Server["Backend (FastAPI on Render)"]
+    subgraph Backend["FastAPI Backend (Render Web Service)"]
         App["FastAPI Application"]
-        AuthRouter["Auth Router (/api/auth)"]
-        UploadRouter["Upload Router (/api/upload)"]
-        ReviewsRouter["Reviews Router (/api/reviews)"]
-        StatsRouter["Stats Router (/api/stats)"]
-        ConnMgr["ConnectionManager (In-Memory WebSocket Hub)"]
-        Worker["Background Task Worker (asyncio)"]
+        RouterAuth["/api/auth & /api/me"]
+        RouterUploads["/api/uploads & /api/jobs"]
+        RouterReviews["/api/reviews (Queue & Submissions)"]
+        RouterStats["/api/stats (Dashboard Analytics)"]
+        ConnMgr["ConnectionManager (In-Memory Room Hub)"]
+        Worker["Background Task Worker (process_upload_pipeline)"]
+        Publisher["WebSocketJobEventPublisher"]
     end
 
-    subgraph External["External Services & Storage"]
-        DB[("PostgreSQL (Neon) / SQLite")]
-        Gemini["Google Gemini API (Configurable)"]
+    subgraph Database["Relational Storage"]
+        DB[("PostgreSQL (Neon) / SQLite (Local)")]
     end
 
-    Browser --> UI
+    subgraph External["External AI Service"]
+        Gemini["Google Gemini API (Configured by GEMINI_MODEL)"]
+    end
+
     UI --> HTTPClient
     UI --> WSClient
 
-    HTTPClient -- "HTTPS (JWT Bearer Token)" --> App
+    HTTPClient -- "REST / HTTPS (JWT Bearer Token)" --> App
     WSClient -- "WSS /ws/generate/{job_id}?token=..." --> ConnMgr
 
-    App --> AuthRouter
-    App --> UploadRouter
-    App --> ReviewsRouter
-    App --> StatsRouter
+    App --> RouterAuth
+    App --> RouterUploads
+    App --> RouterReviews
+    App --> RouterStats
 
-    UploadRouter -- "Dispatches extraction task" --> Worker
-    Worker -- "Sends text chunks (JSON Schema)" --> Gemini
-    Worker -- "Emits progress events" --> ConnMgr
-    ConnMgr -- "Streams snapshot, chunk_done, ready" --> WSClient
+    RouterAuth --> DB
+    RouterReviews --> DB
+    RouterStats --> DB
 
-    ReviewsRouter -- "Submits SM-2 ratings & reviews" --> DB
-    StatsRouter -- "Queries streak, forecast, accuracy" --> DB
-    AuthRouter -- "User authentication & JWT" --> DB
+    RouterUploads -- "Dispatch generation task" --> Worker
+    Worker -- "1. Extract & validate chunks" --> Worker
+    Worker -- "2. Generate cards via POST /models/{GEMINI_MODEL}" --> Gemini
+    Worker -- "3. Commit Deck, Cards, Job state" --> DB
+    Worker -- "4. Thread-safe event dispatch" --> Publisher
+    Publisher -- "run_coroutine_threadsafe()" --> ConnMgr
+    ConnMgr -- "Stream snapshot, chunk_done, ready" --> WSClient
+```
+
+### Architectural Principles
+
+1. **Database as Single Source of Truth:** All job progress (`done_chunks`, `total_chunks`, `cards_created`, `status`, `error_message`) and extracted cards are committed to the database. The WebSocket connection acts as an ephemeral real-time mirror; if a socket disconnects, the frontend seamlessly recovers the latest state via `GET /api/jobs/{job_id}`.
+2. **Thread-Safe Event Publishing:** The background card generation worker executes in a separate thread. Events are scheduled onto FastAPI's main asyncio event loop using `asyncio.run_coroutine_threadsafe(coro, loop)`. Distractors are stripped from card previews before transmission over WebSockets.
+3. **Pure Domain Functions:** Core algorithmic calculations (`calculate_sm2` in `app/services/sm2.py`, `apply_exam_mode_cap`, `calculate_topic_accuracy`, and `calculate_card_priority` in `app/services/scheduler.py`, and `calculate_expected_retention` in `app/services/stats.py`) are pure, side-effect-free functions taking explicit dates. They contain no database queries or system clock calls, enabling deterministic unit testing.
+4. **Single-Worker Process Constraint:** The backend relies on in-memory sliding-window rate limiters (`IPRateLimiter`, `UserRateLimiter`) and an in-memory WebSocket room registry (`ConnectionManager`). Therefore, the backend must run as a single process (`--workers 1`). Horizontal multi-worker scaling requires migrating rate limiting and socket rooms to a Redis pub/sub layer.
+
+### Directory Structure
+
+```
+RecallOS/
+├── .env.example                     # Root backend environment template
+├── docs/
+│   ├── DECISIONS.md                 # Architecture Decision Records (ADRs)
+│   └── DEPLOY.md                    # Production deployment documentation
+├── backend/
+│   ├── alembic/                     # Database migrations
+│   │   ├── env.py
+│   │   └── versions/
+│   ├── alembic.ini
+│   ├── app/
+│   │   ├── core/                    # Config, DB connection, rate limiting, security, IST time
+│   │   ├── llm/                     # Gemini client, base interface, prompt directives
+│   │   ├── models/                  # SQLAlchemy declarative models (User, Deck, Card, Job, Review)
+│   │   ├── routers/                 # FastAPI routes (auth, uploads, reviews, stats, decks, ws)
+│   │   ├── schemas/                 # Pydantic request and response schemas
+│   │   ├── services/                # SM-2, scheduler, stats, extractor, generator, validator
+│   │   ├── ws/                      # WebSocket ConnectionManager and threadsafe publisher
+│   │   └── main.py                  # Application entry point, lifespan, CORS, error handlers
+│   ├── scripts/
+│   │   └── seed.py                  # Demo account and database seeder
+│   ├── tests/                       # Pytest test suite (119 test cases)
+│   └── requirements.txt
+└── frontend/
+    ├── src/
+    │   ├── api/                     # HTTP client, authentication, API endpoints
+    │   ├── components/              # UI components, dashboard charts, layout, navbar
+    │   ├── context/                 # AuthContext, ThemeContext, ToastContext
+    │   ├── hooks/                   # useGenerationJob, useCountUp
+    │   ├── pages/                   # Dashboard, Upload, Review, Decks, Settings, Auth
+    │   ├── styles/                  # tokens.css design system
+    │   └── index.css                # Base Tailwind & custom component rules
+    ├── package.json
+    └── vite.config.ts
 ```
 
 ---
 
-## Local Setup
+## 8. Local Setup
 
 ### Prerequisites
-- Python 3.13+
-- Node.js 18+ and npm
+- Python 3.13 or higher
+- Node.js 18 or higher with npm
 - A Google Gemini API key ([Google AI Studio](https://aistudio.google.com/))
 
-### 1. Clone Repository
-```bash
-git clone https://github.com/w3bxrj/RecallOS.git
-cd RecallOS
+### 1. Backend Setup
+
+#### Windows (PowerShell)
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# Configure environment variables
+Copy-Item ..\.env.example .env
+# Edit .env and supply your GEMINI_API_KEY and GEMINI_MODEL
+
+# Run migrations to initialize SQLite database
+alembic upgrade head
+
+# (Optional) Seed demo user, decks, and review history
+python scripts/seed.py
+
+# Start development server
+uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. Backend Setup
+#### macOS / Linux (bash/zsh)
 ```bash
 cd backend
-
-# Create and activate virtual environment
-python -m venv venv
-
-# Windows:
-.\venv\Scripts\activate
-# Linux/macOS:
+python3 -m venv venv
 source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
 
 # Configure environment variables
 cp ../.env.example .env
-# Edit .env and supply your GEMINI_API_KEY
+# Edit .env and supply your GEMINI_API_KEY and GEMINI_MODEL
 
-# Seed the database with sample demo data (test user, cards, reviews)
+# Run migrations
+alembic upgrade head
+
+# (Optional) Seed demo user, decks, and review history
 python scripts/seed.py
 
-# Start the development server
+# Start development server
 uvicorn app.main:app --reload --port 8000
 ```
-Backend API will be available at `http://localhost:8000`. Swagger API docs at `http://localhost:8000/docs`.
 
-### 3. Frontend Setup
+The API will be accessible at `http://localhost:8000`. Interactive OpenAPI documentation is available at `http://localhost:8000/docs`.
+
+### 2. Frontend Setup
+
+#### All Platforms
 ```bash
-cd ../frontend
-
-# Install dependencies
+cd frontend
 npm install
 
-# Start the Vite development server
+# Start development server
 npm run dev
 ```
-Frontend will be available at `http://localhost:5173`.
+
+The frontend will run at `http://localhost:5173`. When running locally in development mode without a custom `.env`, the frontend automatically defaults API calls to `http://localhost:8000` and WebSockets to `ws://localhost:8000`.
 
 ---
 
-## Environment Variables
+## 9. Environment Variables
 
-### Backend Configuration (`backend/.env`)
+### Backend (`.env` / Hosting Provider Config)
 
-| Variable | Description |
-| :--- | :--- |
-| `ENV` | Environment identifier (`development` or `production`). |
-| `DATABASE_URL` | SQLAlchemy database URL (e.g., `postgresql+psycopg2://...` or `sqlite:///./recallos_dev.db`). |
-| `JWT_SECRET` | Secret key used to sign authentication tokens (minimum 32 characters in production). |
-| `JWT_EXPIRE_MINUTES` | Token expiration duration in minutes (default: `1440` = 24 hours). |
-| `GEMINI_API_KEY` | Google Gemini API key for flashcard generation. |
-| `GEMINI_MODEL` | Gemini model name (default: `gemini-2.5-flash`; configurable via env as models get retired). |
-| `ALLOWED_ORIGINS` | Comma-separated list of permitted CORS/WebSocket origins (no wildcards in production). |
-| `MAX_UPLOAD_MB` | Maximum permitted file upload size in megabytes (default: `10`). |
-| `DAILY_CARD_LIMIT` | Maximum cards presented in a single day's review queue (default: `50`). |
-| `ENABLE_DUEL` | Feature flag for the real-time duel game (default: `false`). |
-
-### Frontend Configuration (`frontend/.env.development` / Production env)
-
-| Variable | Description |
-| :--- | :--- |
-| `VITE_API_URL` | Base HTTP URL of the backend API (e.g. `http://localhost:8000` or production URL). |
-| `VITE_WS_URL` | Base WebSocket URL of the backend API (e.g. `ws://localhost:8000` or production URL). |
-| `VITE_ENABLE_DUEL` | Feature flag hiding or showing the duel link in navigation (set to `false`). |
-
----
-
-## Deployment
-
-| Service | Platform | Link |
+| Variable | Required | Description |
 | :--- | :--- | :--- |
-| **Frontend** | Vercel | `[TODO: Insert Live Frontend URL]` |
-| **Backend API** | Render | `[TODO: Insert Live Backend URL]` |
-| **Demo Video** | YouTube / Loom | `[TODO: Insert Demo Video Link]` |
+| `ENV` | Yes | Runtime environment (`development` or `production`). In production, SQLite, default secrets, and wildcard CORS are rejected. |
+| `DATABASE_URL` | Yes | SQLAlchemy database connection URL (e.g. `sqlite:///./recallos_dev.db` for local dev; `postgresql://...` for production). |
+| `JWT_SECRET` | Yes | Cryptographic secret for signing JWT access tokens (minimum 32 characters in production). |
+| `JWT_EXPIRE_MINUTES` | No | Expiration window for access tokens in minutes (default: `1440` = 24 hours). |
+| `GEMINI_API_KEY` | Yes | Google Gemini API key for flashcard generation. |
+| `GEMINI_MODEL` | Yes | Model identifier (e.g. `gemini-2.5-flash`). Kept configurable so model retirements by Google do not require code changes. |
+| `ALLOWED_ORIGINS` | Yes | Comma-separated list of allowed CORS and WebSocket origins (e.g. `http://localhost:5173,http://localhost:3000`). |
+| `MAX_UPLOAD_MB` | No | Maximum file upload size in megabytes (default: `10`). |
+| `MAX_VISION_PAGES` | No | Maximum pages processed for scanned PDFs in vision mode (default: `32`). |
+| `DAILY_CARD_LIMIT` | No | Maximum cards served in a single day's review queue (default: `50`). |
+| `ENABLE_DUEL` | No | Feature flag for the planned multiplayer duel feature (default: `false`). |
 
-### Production Deployment Notes
-- **Backend (Render Free Tier):**
-  - Configured via `render.yaml` with `rootDir: backend`, `plan: free`, `region: singapore`.
-  - Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"`
-  - Runs with exactly **one worker process** to support in-memory rate limiting and the WebSocket `ConnectionManager`.
-  - Production database hosted on **Neon PostgreSQL** with `sslmode=require`, `pool_pre_ping=True`, `pool_size=3`, and `max_overflow=2`.
-- **Frontend (Vercel):**
-  - Build command: `npm run build`
-  - Output directory: `dist`
-  - Strict SPA route rewriting configured via `vercel.json`.
+### Frontend (`frontend/.env` / Vercel Environment)
+
+| Variable | Required in Production | Description |
+| :--- | :--- | :--- |
+| `VITE_API_URL` | Yes (Production) | Base HTTPS URL of the backend API (e.g. `https://recallos-backend.onrender.com`). |
+| `VITE_WS_URL` | Yes (Production) | Base WSS URL of the backend WebSocket server (e.g. `wss://recallos-backend.onrender.com`). |
+| `VITE_ENABLE_DUEL` | No | UI feature flag hiding the duel navigation entry (default: `false`). |
 
 ---
 
-## Demo Credentials
+## 10. Deployment
 
-A pre-populated demo account is available out of the box when running `python scripts/seed.py`:
+- **Live Frontend:** [https://recall-os-study.vercel.app](https://recall-os-study.vercel.app)
+- **Live Backend API:** [https://recallos-backend.onrender.com](https://recallos-backend.onrender.com) (Health check endpoint: `GET https://recallos-backend.onrender.com/health`)
+- **Demo video: TODO add link**
+
+### Production Infrastructure Overview
+1. **Database (Neon Serverless PostgreSQL):** Managed PostgreSQL instance configured with `sslmode=require`, SQLAlchemy connection pooling (`pool_size=3`, `max_overflow=2`), and `pool_pre_ping=True`.
+2. **Backend (Render Web Service):** Python service running `uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1`. Migrations run automatically on build via `alembic upgrade head`.
+3. **Frontend (Vercel):** Single-page React application built with `npm run build` and served with client-side SPA route rewrites configured in `vercel.json`.
+4. Detailed step-by-step production runbooks are documented in [docs/DEPLOY.md](docs/DEPLOY.md).
+
+> [!NOTE]
+> **Render Free-Tier Spin-Down:** The backend is hosted on Render's free tier. If no requests are received for 15 minutes, the service spins down to conserve resources. The initial wake-up request may experience a cold start latency of **30 to 60 seconds**.
+
+---
+
+## 11. Demo Credentials
+
+A pre-seeded demonstration account is available for immediate testing:
 
 - **Email:** `testuser@example.com`
 - **Password:** `password123`
 
-> [!NOTE]
-> **Important Note on Demo Data:** Demo data is relative to the seeding date (**27 Oct 2026**). Streak and exam countdown will naturally drift as the calendar advances. Upload your own notes to experience live generation, real-time WebSocket progress, and dynamic retention updates.
+*Note on Seed Data:* The demo database was populated relative to the reference seeding date (**27 Oct 2026**). As real-world time advances, the active review streak and exam countdown will drift relative to that reference point. Uploading your own document creates an isolated deck and starts a fresh generation and review cycle.
 
 ---
 
-## Testing
+## 12. Testing
 
-The project includes an automated Pytest test suite covering authentication, SM-2 logic, PDF extraction, live WebSockets, stats calculations, rate limiting, and database constraints.
+The codebase includes automated unit and integration tests across both the backend and frontend.
 
-### Running Backend Tests
+### Backend Test Suite (Pytest)
 ```bash
 cd backend
-# Run full suite
-pytest -v
-
-# Run with quiet progress summary
-pytest -q
+.\venv\Scripts\pytest.exe -v    # Windows
+# or: pytest -v                 # Linux/macOS
 ```
-**Current Status:** `117 passed` (100% pass rate).
+**Test Results:**
+- **118 passed**, **1 skipped** (119 total tests collected).
+- The single skipped test (`test_migration_on_postgres`) verifies live PostgreSQL migration rollbacks and is skipped automatically when running against local SQLite.
 
-### Running Frontend Validation
+### Frontend Quality Gates
 ```bash
 cd frontend
-# TypeScript type check (zero errors required)
+
+# 1. TypeScript compilation check
 npx tsc --noEmit
 
-# Production build verification
+# 2. Vitest unit and integration test suite
+npm test
+
+# 3. Production bundle compilation
 npm run build
 ```
-*(Notice: The initial bundle remains compact at ~256 kB; Recharts is 100% isolated inside the dynamic lazy chunk).*
+**Test Results:**
+- TypeScript: `0 errors`
+- Vitest: `21 passed` (2 test files: `generationJobState.test.ts`, `SettingsPage.test.tsx`)
+- Build: successful build with code-split chunks (Recharts isolated in dynamic chunk `AnalyticsSection.js`).
 
 ---
 
-## Known Limitations
+## 13. Security and Engineering Decisions
 
-1. **Single Worker In-Memory State:** Rate limiting (30 requests/minute per IP on login/register), active WebSocket connections (`ConnectionManager`), and asynchronous generation tasks run in server memory. Multi-worker or multi-instance scaling requires an external Redis pub/sub layer.
-2. **Free-Tier Cold Starts:** Because the backend is deployed on Render's free tier, the service spins down after 15 minutes of inactivity. Initial requests may take **30 to 60 seconds** to wake up.
-3. **Scanned / Image-Only PDFs:** Scanned PDFs are processed with Gemini vision fallback (capped at first 32 pages, slower than raw text extraction).
+- **Bcrypt Password Hashing:** User passwords are encrypted with individual salts using `bcrypt.hashpw` before database storage.
+- **Stateless JWT Tokens:** Authentication uses HMAC-SHA256 JWT tokens with an enforced 24-hour expiration window.
+- **Tenancy Enforcement & Enumeration Prevention:** All deck, card, review, and job queries filter strictly by `user_id == current_user.id`. Accessing a foreign resource ID returns HTTP 404 rather than 403, preventing attackers from confirming the existence of other users' records.
+- **CORS & WebSocket Origin Validation:** The backend enforces an explicit origin allowlist (`ALLOWED_ORIGINS`). The `/ws/generate/{job_id}` endpoint checks the `Origin` header prior to handshake acceptance, closing unauthorized origins with code 4403.
+- **Tiered Rate Limiting:** Sliding-window in-memory limiters guard endpoints against brute-force attacks:
+  - Auth endpoints (`/api/auth/register`, `/api/auth/login`): 30 requests per minute per IP.
+  - Upload endpoint (`/api/uploads`): 10 uploads per minute per user.
+- **Zero Secrets in Code or Logs:**
+  - Google Gemini API keys are passed exclusively via the `x-goog-api-key` HTTP request header, never in URL query strings.
+  - A centralized `redact()` utility strips Gemini keys (`AIza...`, `AQ...`), Bearer tokens, query string parameters, and configured secrets from all logs and error messages.
+- **Fail-Fast Error Masking:** The database `jobs.error_message` column never stores raw third-party exception strings. Specific HTTP status codes from the LLM provider are mapped to friendly messages (e.g. 401/403 $\rightarrow$ `"AI service configuration problem"`, 404 $\rightarrow$ `"The AI service is temporarily unavailable. Please try again later."`).
+- **Prompt Injection Defense:** Untrusted study material is encapsulated between `<<<STUDY_MATERIAL_START>>>` and `<<<STUDY_MATERIAL_END>>>` markers accompanied by a system directive commanding the model to treat the content strictly as passive data and ignore embedded instructions.
+- **Strict Input Validation:** Uploaded PDFs are checked for magic bytes (`%PDF`), encrypted status, and size caps. Text files require valid UTF-8 encoding.
+- **Stranded Job Recovery:** On application startup, the lifespan context executes a SQL query marking any jobs left in `queued` or `processing` states as `failed` (`"Server restarted during processing"`), preventing jobs from hanging permanently if the server restarts.
+
+---
+
+## 14. Known Limitations
+
+1. **Single-Worker Concurrency:** In-memory rate limiting and WebSocket connection tracking (`ConnectionManager`) require the backend to run as a single worker process (`--workers 1`). Running multiple worker instances without an external Redis broker causes WebSocket disconnects and inconsistent rate limit buckets.
+2. **Free-Tier Host Latency:** Render's free tier spins down idle instances after 15 minutes, introducing a 30 to 60-second cold start delay on the first inbound request.
+3. **Scanned PDF Page Cap:** Scanned PDF processing is capped at `MAX_VISION_PAGES` (default 32 pages) and requires 10 to 20 seconds per 4-page chunk due to multimodal vision inference and API rate-limit cooldowns.
+4. **AI Generation Errors:** As with all large language model extractions, generated flashcards and distractors may occasionally contain factual errors or imperfect phrasing.
+5. **Retention Metric Assumptions:** The estimated exam-day retention score is an approximation derived from an exponential decay model ($R = \exp(-t/S)$) that assumes the student ceases studying entirely from today until the exam date.
+6. **Token Storage in LocalStorage:** JWT tokens are stored in the browser's `localStorage` for authentication persistence. As documented in [docs/DECISIONS.md](docs/DECISIONS.md), this design choice favors implementation simplicity for single-page applications while relying on strict CSP and lack of third-party runtime scripts to mitigate XSS risk.
+7. **Account Management:** The current implementation does not include self-service email verification or password reset flows.
 
 ---
 
-## Future Work
+## 15. Future Work
 
-The following features are planned enhancements for upcoming iterations (**planned, not implemented in this submission**):
+The following features represent planned enhancements that are **not implemented** in the current release:
 
-1. **Real-time Quiz Duel:** Two players compete on the same deck over WebSockets with a server-authoritative game engine, reusing the existing `ConnectionManager` (detailed architecture design already documented in `docs/PRD.md` Section 9.2).
-2. **Multi-Worker Scaling:** Multi-worker backend support by migrating sliding-window rate limiting and WebSocket room management to Redis.
-3. **Resilient WebSocket Sessions:** Reconnect and resume capabilities for dropped WebSocket sessions during generation or review streaming.
-4. **Automated Study Reminders:** Push or email reminders notifying students when cards in their decks are due according to their SM-2 schedule.
+1. **Real-Time Multiplayer Quiz Duel:** A real-time competitive game mode over WebSockets where two students test their recall on the same deck simultaneously. The `duels` table schema is currently reserved in the database for this feature, with `ENABLE_DUEL=false`.
+2. **Integrated Markdown Notes Editor:** An in-browser notes editor with live preview, syntax highlighting, and diagram support allowing direct conversion from authored notes into flashcards.
+3. **Horizontal Scaling via Redis:** Migration of the sliding-window rate limiters and the WebSocket `ConnectionManager` to a Redis key-value store and pub/sub bus to enable multi-worker and multi-instance deployments.
+4. **Resilient WebSocket Session Resumption:** Support for client reconnection tokens that allow interrupted WebSocket streams to resume cleanly after temporary mobile network loss.
+5. **Automated Due-Card Notifications:** Push notifications or email digests reminding students when flashcards are due for review.
+6. **Migration to Official Google GenAI SDK:** Upgrading the current raw HTTPX Gemini client to Google's official `google-genai` SDK with typed structured schema enforcement.
+
+---
+
+## 16. AI Usage
+
+In accordance with academic and submission integrity guidelines, AI assistance was utilized in the following areas during the design and development of RecallOS:
+
+- **Development & Coding Assistance:** An AI coding agent within the Antigravity IDE was used for iterative implementation, test creation, and bug fixing based on a phased technical specification. An AI assistant was used for initial requirement decomposition, architecture trade-off discussions, and code review.
+- **Product Integration:** The production product integrates Google Gemini via direct REST calls for automated question-and-answer extraction from text and multimodal vision extraction from scanned PDFs.
+- **Human Verification:** All generated code was verified by hand:
+  - The complete test suites (119 backend Pytest cases, 21 frontend Vitest cases) were executed and validated locally.
+  - Manual end-to-end user acceptance testing (registration, upload, streaming generation, SM-2 review, dashboard calculations) was performed on both local and production environments.
+  - Security policies, credential redaction patterns, and environment variable isolation were audited manually.
+- **Architecture References:** Architectural trade-offs and decision logs are documented in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ---
 
-## AI Usage Note
+## 17. Screenshots
 
-RecallOS integrates **Google Gemini** (configured via `GEMINI_MODEL`, defaulting to `gemini-2.5-flash`) exclusively for automated card generation from student notes. 
+- **Dashboard & Analytics:**  
+  *TODO: Add screenshot of Analytics Dashboard at `docs/screenshots/dashboard.png`*
 
-- **Prompt Architecture:** The model receives semantic text chunks accompanied by a strict Pydantic JSON schema enforcing atomic questions, concise explanations, and exactly three plausible distractors per card.
-- **Structured Output:** All generations use Gemini's native structured JSON mode, eliminating parsing errors or unformatted markdown text.
-- **Fail-Safe Processing:** If a particular text chunk fails generation, the worker logs the error without aborting the job, allowing valid cards from adjacent chunks to stream to the student seamlessly.
+- **Document Upload & Live WebSocket Stream:**  
+  *TODO: Add screenshot of live generation feed at `docs/screenshots/live_generation.png`*
+
+- **Active Recall Review Session:**  
+  *TODO: Add screenshot of SM-2 review card at `docs/screenshots/review.png`*
 
 ---
+
+## 18. License and Credits
+
+- **License:** Open-source educational project developed for academic submission.
+- **Credits & Dependencies:** Built using FastAPI, SQLAlchemy, Alembic, PyPDF, React, Vite, Tailwind CSS, Recharts, Lucide React, and Motion.
+- **Originality:** All application routing, database models, SM-2 scheduling algorithms, thread-safe WebSocket publisher implementations, and frontend interfaces were authored directly for RecallOS; no external commercial flashcard codebase was copied.
