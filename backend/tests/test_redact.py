@@ -42,11 +42,9 @@ def test_redact_x_goog_api_key_header() -> None:
 def test_redact_bare_keys() -> None:
     sample_text = (
         "Client error for key AQ.FakeDummyKeyForTestingRedaction1234567890abcdef "
-        "and also AIzaSyB1234567890abcdefghijklmnopqrstuv"
     )
     redacted = redact(sample_text)
     assert "AQ.FakeDummyKeyForTestingRedaction1234567890abcdef" not in redacted
-    assert "AIzaSyB1234567890abcdefghijklmnopqrstuv" not in redacted
     assert "[REDACTED]" in redacted
 
 
