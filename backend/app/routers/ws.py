@@ -2,10 +2,13 @@ import asyncio
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from sqlalchemy import select
+
 import app.core.db as db_core
 from app.core.config import settings
 from app.core.security import decode_access_token
 from app.models.user import User
+from app.models.card import Card
 from app.models.job import Job
 from app.ws.connection_manager import connection_manager
 
@@ -65,6 +68,20 @@ async def ws_generate(websocket: WebSocket, job_id: int) -> None:
             await websocket.close(code=4404)
             return
 
+        existing_cards = []
+        if job.deck_id:
+            cards_list = db.scalars(
+                select(Card).where(Card.deck_id == job.deck_id).order_by(Card.id.asc())
+            ).all()
+            for c in cards_list:
+                existing_cards.append({
+                    "id": c.id,
+                    "deck_id": c.deck_id,
+                    "topic": c.topic,
+                    "question": c.question,
+                    "answer": c.answer,
+                })
+
         snapshot_data = {
             "status": job.status,
             "deck_id": job.deck_id,
@@ -75,6 +92,7 @@ async def ws_generate(websocket: WebSocket, job_id: int) -> None:
             "notice": job.notice,
             "is_vision": job.is_vision,
             "vision_mode": job.is_vision,
+            "cards": existing_cards,
         }
         job_status = job.status
         deck_id = job.deck_id

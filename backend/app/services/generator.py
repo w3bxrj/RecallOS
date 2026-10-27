@@ -85,6 +85,7 @@ def run_card_generation(
                         valid_cards.append(validated)
 
                 if valid_cards:
+                    chunk_cards = []
                     for v in valid_cards:
                         card_obj = Card(
                             deck_id=deck_id,
@@ -107,6 +108,14 @@ def run_card_generation(
                         )
                         db.add(state_obj)
 
+                        chunk_cards.append({
+                            "id": card_obj.id,
+                            "deck_id": deck_id,
+                            "topic": card_obj.topic,
+                            "question": card_obj.question,
+                            "answer": card_obj.answer,
+                        })
+
                     job.cards_created += len(valid_cards)
                     job.done_chunks = idx + 1
                     db.commit()
@@ -115,7 +124,7 @@ def run_card_generation(
                         job_id=job_id,
                         chunk_index=idx,
                         total_chunks=len(chunks),
-                        new_cards=valid_cards,
+                        new_cards=chunk_cards,
                         cards_created=job.cards_created,
                     )
                 else:
@@ -258,6 +267,7 @@ def run_vision_card_generation(
                         valid_cards.append(validated)
 
                 if valid_cards:
+                    chunk_cards = []
                     for v in valid_cards:
                         card_obj = Card(
                             deck_id=deck_id,
@@ -280,6 +290,14 @@ def run_vision_card_generation(
                         )
                         db.add(state_obj)
 
+                        chunk_cards.append({
+                            "id": card_obj.id,
+                            "deck_id": deck_id,
+                            "topic": card_obj.topic,
+                            "question": card_obj.question,
+                            "answer": card_obj.answer,
+                        })
+
                     job.cards_created += len(valid_cards)
                     job.done_chunks = idx + 1
                     db.commit()
@@ -288,7 +306,7 @@ def run_vision_card_generation(
                         job_id=job_id,
                         chunk_index=idx,
                         total_chunks=len(chunks),
-                        new_cards=valid_cards,
+                        new_cards=chunk_cards,
                         cards_created=job.cards_created,
                         page_range=page_range_label,
                     )
