@@ -16,6 +16,7 @@ import {
 import { apiUploadDocument } from '../api/upload';
 import { ApiClientError } from '../api/types';
 import { useGenerationJob } from '../hooks/useGenerationJob';
+import { calculateProgress } from '../hooks/generationJobState';
 import { Spinner } from '../components/common/Spinner';
 
 export const UploadPage: React.FC = () => {
@@ -142,10 +143,12 @@ export const UploadPage: React.FC = () => {
   if (activeJobId) {
     const isReady = generation.status === 'ready';
     const isFailed = generation.status === 'failed';
-    const percent =
-      generation.totalChunks > 0
-        ? Math.min(100, Math.round((generation.doneChunks / generation.totalChunks) * 100))
-        : 5;
+    const { percent, chunkText, isValid: hasValidChunks } = calculateProgress(
+      generation.doneChunks,
+      generation.totalChunks,
+      isReady
+    );
+    const safeCardsCreated = Number.isFinite(generation.cardsCreated) ? generation.cardsCreated : 0;
 
     return (
       <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
@@ -174,14 +177,14 @@ export const UploadPage: React.FC = () => {
               </h1>
               <p className="text-sm text-slate-500 mt-1">
                 {isReady
-                  ? `Completed! Created ${generation.cardsCreated} cards ready for spaced repetition.`
+                  ? `Completed! Created ${safeCardsCreated} cards ready for spaced repetition.`
                   : isFailed
                   ? generation.errorMessage || 'The generation job could not be completed.'
-                  : generation.totalChunks > 0
+                  : hasValidChunks
                   ? (generation.isVision
-                      ? `Reading scanned pages (chunk ${generation.doneChunks} of ${generation.totalChunks})...`
-                      : `Processing chunk ${generation.doneChunks} of ${generation.totalChunks}...`)
-                  : 'Reading document and partitioning into chunks...'}
+                      ? `Reading scanned pages (${chunkText.toLowerCase()})...`
+                      : `Processing ${chunkText.toLowerCase()}...`)
+                  : 'Starting...'}
               </p>
             </div>
 
@@ -205,12 +208,8 @@ export const UploadPage: React.FC = () => {
           {!isFailed && (
             <div className="space-y-2 mb-6">
               <div className="flex justify-between text-xs font-semibold text-slate-600">
-                <span>
-                  {generation.totalChunks > 0
-                    ? `Chunk ${generation.doneChunks} of ${generation.totalChunks}`
-                    : 'Initializing...'}
-                </span>
-                <span>{generation.cardsCreated} cards created</span>
+                <span>{chunkText}</span>
+                <span>{safeCardsCreated} cards created</span>
               </div>
               <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
                 <div
@@ -231,14 +230,14 @@ export const UploadPage: React.FC = () => {
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-md shadow-indigo-100 transition-colors"
               >
                 <BookOpen className="w-4 h-4" />
-                <span>Start Reviewing</span>
+                <span>Start reviewing</span>
               </Link>
               <Link
                 to="/decks"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-colors"
               >
                 <Layers className="w-4 h-4" />
-                <span>View Deck</span>
+                <span>View deck</span>
               </Link>
               <button
                 onClick={resetUpload}
@@ -260,7 +259,7 @@ export const UploadPage: React.FC = () => {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition-colors"
               >
                 <RotateCcw className="w-4 h-4" />
-                <span>Retry Upload</span>
+                <span>Retry</span>
               </button>
             </div>
           )}
