@@ -44,7 +44,7 @@ export const WeakTopicsList: React.FC<WeakTopicsListProps> = ({
               Weak Topics
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Accuracy &lt; 60% with $\ge 5$ reviews.
+              Accuracy &lt; 60% with ≥ 5 reviews.
             </p>
           </div>
           <span

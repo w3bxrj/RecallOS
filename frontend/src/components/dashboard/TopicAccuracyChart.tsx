@@ -63,7 +63,7 @@ export const TopicAccuracyChart: React.FC<TopicAccuracyChartProps> = ({
               Topic Accuracy (Last 30 Days)
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Share of ratings $\ge 3$ per topic. Topics below 60% are prioritized for revision.
+              Share of ratings ≥ 3 per topic. Topics below 60% are prioritized for revision.
             </p>
           </div>
 
@@ -71,7 +71,7 @@ export const TopicAccuracyChart: React.FC<TopicAccuracyChartProps> = ({
           <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-slate-600 shrink-0">
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-indigo-600 inline-block" />
-              <span>$\ge 60\%$ (Proficient)</span>
+              <span>≥ 60% (Proficient)</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span
