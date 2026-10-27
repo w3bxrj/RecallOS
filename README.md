@@ -79,9 +79,9 @@ RecallOS replaces the friction of manual flashcard creation with an end-to-end a
 | **Framework** | FastAPI | RESTful APIs, OpenAPI docs & native WebSocket endpoints |
 | **Database** | PostgreSQL / SQLite | Neon serverless PostgreSQL (production) / SQLite (local dev) |
 | **ORM** | SQLAlchemy 2.0 | Declarative models with connection pooling and pre-ping |
-| **LLM Provider** | Google Gemini 2.5 Flash | Structured JSON schema generation via `google-genai` |
+| **LLM Provider** | Google Gemini (Configurable) | Structured JSON schema generation via Gemini API |
 | **PDF Extraction** | PyPDF | Fast local text extraction without external binaries |
-| **Testing** | Pytest & Starlette TestClient | 106 unit and integration tests |
+| **Testing** | Pytest & Starlette TestClient | 117 unit and integration tests |
 | **Frontend** | React 18 & TypeScript | Strict type safety and component modularity |
 | **Build Tool** | Vite | Lightning-fast HMR and bundle code-splitting |
 | **Styling** | Tailwind CSS | Utility-first responsive design with custom animations |
@@ -113,7 +113,7 @@ flowchart TB
 
     subgraph External["External Services & Storage"]
         DB[("PostgreSQL (Neon) / SQLite")]
-        Gemini["Google Gemini 2.5 Flash API"]
+        Gemini["Google Gemini API (Configurable)"]
     end
 
     Browser --> UI
@@ -205,7 +205,7 @@ Frontend will be available at `http://localhost:5173`.
 | `JWT_SECRET` | Secret key used to sign authentication tokens (minimum 32 characters in production). |
 | `JWT_EXPIRE_MINUTES` | Token expiration duration in minutes (default: `1440` = 24 hours). |
 | `GEMINI_API_KEY` | Google Gemini API key for flashcard generation. |
-| `GEMINI_MODEL` | Gemini model name (default: `gemini-1.5-flash` or `gemini-2.5-flash`). |
+| `GEMINI_MODEL` | Gemini model name (default: `gemini-2.5-flash`; configurable via env as models get retired). |
 | `ALLOWED_ORIGINS` | Comma-separated list of permitted CORS/WebSocket origins (no wildcards in production). |
 | `MAX_UPLOAD_MB` | Maximum permitted file upload size in megabytes (default: `10`). |
 | `DAILY_CARD_LIMIT` | Maximum cards presented in a single day's review queue (default: `50`). |
@@ -267,7 +267,7 @@ pytest -v
 # Run with quiet progress summary
 pytest -q
 ```
-**Current Status:** `106 passed` (100% pass rate).
+**Current Status:** `117 passed` (100% pass rate).
 
 ### Running Frontend Validation
 ```bash
@@ -303,7 +303,7 @@ The following features are planned enhancements for upcoming iterations (**plann
 
 ## AI Usage Note
 
-RecallOS integrates **Google Gemini 2.5 Flash** exclusively for automated card generation from student notes. 
+RecallOS integrates **Google Gemini** (configured via `GEMINI_MODEL`, defaulting to `gemini-2.5-flash`) exclusively for automated card generation from student notes. 
 
 - **Prompt Architecture:** The model receives semantic text chunks accompanied by a strict Pydantic JSON schema enforcing atomic questions, concise explanations, and exactly three plausible distractors per card.
 - **Structured Output:** All generations use Gemini's native structured JSON mode, eliminating parsing errors or unformatted markdown text.

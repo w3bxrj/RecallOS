@@ -50,3 +50,29 @@ When a PDF has an average of fewer than 150 extracted characters per page, Recal
 | **Latency** | Vision chunks take ~10–20s per 4 pages (vs ~1–3s for text). | Chunks are streamed in real-time over WebSockets with live progress bars and `"Reading scanned pages..."` status badges. |
 | **Quota & Rate Limits** | Multimodal calls have tighter RPM and TPM limits on Gemini free tier. | Capped at `MAX_VISION_PAGES` (default 32 pages), with an enforced 6.0-second delay between vision chunks. |
 | **Privacy & Data Governance** | Document page images are sent to Google's Gemini API endpoints. | PDF bytes are sent encrypted over TLS to Gemini's generative language API endpoints. No user documents are persisted on external third-party disk storage. Mentioned in documentation and privacy policies. |
+
+---
+
+## ADR 002: Dynamic Gemini Model Configuration, Header Authentication & Secret Redaction
+
+### Status
+Accepted (Security and Robustness Fix)
+
+### Context & Problem Statement
+1. **Model Retirement Lifecycle:** Google AI Studio periodically retires and replaces model checkpoints (e.g. older 1.5 variants or preview releases). If model names are hardcoded, a retired model returns HTTP 404 and breaks generation until code is changed and redeployed.
+2. **Credential Leakage via URL Query Parameters:** Passing Gemini API keys as URL query parameters (`?key=...`) causes HTTP clients (like `httpx`) to include the full query string in standard exception strings upon network, timeout, or HTTP status errors. If unhandled or logged directly, this leaks the secret into `jobs.error_message`, WebSocket events, and client API responses.
+3. **Information Disclosure in Database Records:** Raw exception strings in database records expose internal API endpoints, stack details, or credentials.
+
+### Decision
+1. **Dynamic Model Configuration via Environment Variable:**
+   `GEMINI_MODEL` is kept strictly as an environment variable (default: `gemini-2.5-flash`). It is never hardcoded in request URLs or business logic. At server startup in production, a non-blocking HEAD/GET check pings Google's `/models/{GEMINI_MODEL}` endpoint with a 5s timeout; if HTTP 404 is returned, a warning is logged immediately alerting operators to update the model environment variable.
+2. **Header-Based Authentication:**
+   All calls to Google's Gemini API authenticate exclusively via the `x-goog-api-key` request header. Keys are never appended as URL query strings.
+3. **Centralized Secret Redaction:**
+   A central `redact()` helper removes Google API keys (`AIza...`, `AQ....`), URL `key=` values, Authorization/Bearer headers, and configured environment secrets (`GEMINI_API_KEY`, `JWT_SECRET`) from any string before logging, storing, or transmitting over APIs.
+4. **Clean Human-Readable Error Messages & Fail-Fast:**
+   `jobs.error_message` never stores raw exception text. Specific Gemini error statuses are mapped directly to human-friendly messages:
+   - `404` (model unavailable): `"The AI service is temporarily unavailable. Please try again later."` (Fail-fast, server logs error with model name and job context).
+   - `401 / 403` (credential issue): `"AI service configuration problem"` (Fail-fast).
+   - `429 / 5xx` (exhausted retries): `"The AI service is busy. Please try again in a minute."`
+

@@ -14,13 +14,16 @@ This document details the configuration and deployment steps for RecallOS on Ren
 | `DATABASE_URL` | PostgreSQL connection string (psycopg2-compatible) | `postgresql://user:pass@ep-xyz.region.aws.neon.tech/neondb?sslmode=require` |
 | `JWT_SECRET` | Secret key for JWT authentication (minimum 32 characters) | `min-32-chars-cryptographically-secure-random-secret` |
 | `JWT_EXPIRE_MINUTES`| Expiration window for access tokens (in minutes) | `1440` (24 hours) |
-| `GEMINI_API_KEY` | Google AI Studio Gemini API Key | `AIzaSy...` |
-| `GEMINI_MODEL` | Gemini model name | `gemini-1.5-flash` |
+| `GEMINI_API_KEY` | Google AI Studio Gemini API Key | `AIzaSy...` or `AQ....` |
+| `GEMINI_MODEL` | Gemini model name (configurable; models get retired by Google over time) | `gemini-2.5-flash` |
 | `ALLOWED_ORIGINS` | Comma-separated list of client origins (no wildcards in production) | `https://recallos.onrender.com,https://recallos.vercel.app` |
 | `MAX_UPLOAD_MB` | Maximum allowed file upload size in MB | `10` |
 | `MAX_VISION_PAGES` | Maximum pages processed for scanned PDFs in vision mode | `32` |
 | `DAILY_CARD_LIMIT` | Default daily review queue limit | `50` |
 | `ENABLE_DUEL` | Feature flag reserved for planned multiplayer quiz duel (keep disabled) | `false` |
+
+> [!NOTE]
+> **Gemini Model Lifecycle:** Google AI Studio periodically deprecates and retires model versions (such as older previews or 1.5 iterations). `GEMINI_MODEL` is kept as a deployment environment variable rather than hardcoded so that model updates do not require code changes.
 
 ---
 
