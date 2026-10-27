@@ -9,7 +9,7 @@ import websockets
 def login_for_token(http_url: str, email: str, password: str) -> str:
     """Authenticates with the RecallOS API and returns a JWT access token."""
     print(f"[*] Authenticating with {http_url} as {email}...")
-    with httpx.Client(base_url=http_url, timeout=10.0) as client:
+    with httpx.Client(base_url=http_url, timeout=90.0, follow_redirects=True) as client:
         # Try login
         res = client.post("/api/auth/login", json={"email": email, "password": password})
         if res.status_code != 200:
@@ -99,11 +99,17 @@ def main() -> None:
     parser.add_argument("--token", default=None, help="JWT access token")
     parser.add_argument("--email", default="manual_test@example.com", help="Email for auto-login")
     parser.add_argument("--password", default="password123", help="Password for auto-login")
-    parser.add_argument("--host", default="localhost:8000", help="Host and port (default: localhost:8000)")
+    parser.add_argument("--host", default="localhost:8000", help="Host and port or domain (e.g. localhost:8000 or recallos-backend.onrender.com)")
+    parser.add_argument("--ssl", action="store_true", help="Force wss:// and https:// (auto-enabled if host is not localhost)")
     args = parser.parse_args()
 
-    http_url = f"http://{args.host}"
-    ws_base = f"ws://{args.host}"
+    clean_host = args.host.replace("https://", "").replace("http://", "").replace("wss://", "").replace("ws://", "").rstrip("/")
+    is_secure = args.ssl or ("localhost" not in clean_host and "127.0.0.1" not in clean_host)
+    scheme_http = "https" if is_secure else "http"
+    scheme_ws = "wss" if is_secure else "ws"
+
+    http_url = f"{scheme_http}://{clean_host}"
+    ws_base = f"{scheme_ws}://{clean_host}"
 
     token = args.token
     if not token:

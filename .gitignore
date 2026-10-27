@@ -52,3 +52,11 @@ Thumbs.db
 .vscode/
 .idea/
 .superpowers/
+
+# extras
+
+.agents
+GEMINI.md 
+requirements
+PRD.md
+docs

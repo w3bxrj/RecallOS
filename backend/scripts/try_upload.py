@@ -13,7 +13,7 @@ def main() -> None:
     parser.add_argument("--password", default="password123", help="Test user password")
     args = parser.parse_args()
 
-    client = httpx.Client(base_url=args.base_url, timeout=30.0)
+    client = httpx.Client(base_url=args.base_url, timeout=90.0, follow_redirects=True)
 
     # 1. Prepare file to upload
     target_path = args.file_path
