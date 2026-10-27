@@ -228,6 +228,8 @@ def test_ws_endpoint_snapshot_and_terminal_events(client, db_session):
         msg = ws.receive_json()
         assert msg["type"] == "snapshot"
         assert msg["data"]["status"] == "queued"
+        assert msg["data"]["deck_id"] == deck.id
+        assert "vision_mode" in msg["data"]
         assert msg["data"]["done_chunks"] == 1
         assert msg["data"]["total_chunks"] == 5
         assert msg["data"]["cards_created"] == 3
@@ -452,6 +454,44 @@ def test_ws_real_background_tasks_upload(client, monkeypatch):
         assert msg2["type"] == "ready"
         assert msg2["data"]["deck_id"] == deck_id
         assert msg2["data"]["cards_created"] >= 1
+
+
+def test_job_status_and_snapshot_include_deck_id_and_vision_mode(client, db_session):
+    """Verifies that GET /api/jobs/{id} and websocket snapshot include deck_id and vision_mode."""
+    from app.models.deck import Deck
+    from app.models.job import Job
+    user_id, token = create_user_and_token(client, "snapshot_keys@example.com")
+    deck = Deck(user_id=user_id, title="Test Deck", source_filename="test.txt", file_hash="hash_snap_test")
+    db_session.add(deck)
+    db_session.flush()
+
+    job = Job(
+        user_id=user_id,
+        deck_id=deck.id,
+        status="ready",
+        total_chunks=3,
+        done_chunks=3,
+        cards_created=10,
+        is_vision=True,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    # REST check: GET /api/jobs/{id}
+    res = client.get(f"/api/jobs/{job.id}", headers={"Authorization": f"Bearer {token}"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["deck_id"] == deck.id
+    assert data["vision_mode"] is True
+    assert data["is_vision"] is True
+
+    # WebSocket check: initial snapshot
+    with client.websocket_connect(f"/ws/generate/{job.id}?token={token}") as ws:
+        msg = ws.receive_json()
+        assert msg["type"] == "snapshot"
+        assert msg["data"]["deck_id"] == deck.id
+        assert msg["data"]["vision_mode"] is True
+        assert msg["data"]["is_vision"] is True
 
 
 

@@ -67,6 +67,7 @@ async def ws_generate(websocket: WebSocket, job_id: int) -> None:
 
         snapshot_data = {
             "status": job.status,
+            "deck_id": job.deck_id,
             "done_chunks": job.done_chunks,
             "total_chunks": job.total_chunks,
             "cards_created": job.cards_created,
