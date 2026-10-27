@@ -311,13 +311,12 @@ The frontend will run at `http://localhost:5173`. When running locally in develo
 
 - **Live Frontend:** [https://recall-os-study.vercel.app](https://recall-os-study.vercel.app)
 - **Live Backend API:** [https://recallos-backend.onrender.com](https://recallos-backend.onrender.com) (Health check endpoint: `GET https://recallos-backend.onrender.com/health`)
-- **Demo video: TODO add link**
+- **Demo video: [https://drive.google.com/file/d/1yvAGq8cdToMB8GFPazNpF06CDtY4bTOp/view?usp=drive_link]**
 
 ### Production Infrastructure Overview
 1. **Database (Neon Serverless PostgreSQL):** Managed PostgreSQL instance configured with `sslmode=require`, SQLAlchemy connection pooling (`pool_size=3`, `max_overflow=2`), and `pool_pre_ping=True`.
 2. **Backend (Render Web Service):** Python service running `uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1`. Migrations run automatically on build via `alembic upgrade head`.
 3. **Frontend (Vercel):** Single-page React application built with `npm run build` and served with client-side SPA route rewrites configured in `vercel.json`.
-4. Detailed step-by-step production runbooks are documented in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 > [!NOTE]
 > **Render Free-Tier Spin-Down:** The backend is hosted on Render's free tier. If no requests are received for 15 minutes, the service spins down to conserve resources. The initial wake-up request may experience a cold start latency of **30 to 60 seconds**.
@@ -384,7 +383,7 @@ npm run build
 3. **Scanned PDF Page Cap:** Scanned PDF processing is capped at `MAX_VISION_PAGES` (default 32 pages) and requires 10 to 20 seconds per 4-page chunk due to multimodal vision inference and API rate-limit cooldowns.
 4. **AI Generation Errors:** As with all large language model extractions, generated flashcards and distractors may occasionally contain factual errors or imperfect phrasing.
 5. **Retention Metric Assumptions:** The estimated exam-day retention score is an approximation derived from an exponential decay model ($R = \exp(-t/S)$) that assumes the student ceases studying entirely from today until the exam date.
-6. **Token Storage in LocalStorage:** JWT tokens are stored in the browser's `localStorage` for authentication persistence. As documented in [docs/DECISIONS.md](docs/DECISIONS.md), this design choice favors implementation simplicity for single-page applications while relying on strict CSP and lack of third-party runtime scripts to mitigate XSS risk.
+6. **Token Storage in LocalStorage:** JWT tokens are stored in the browser's `localStorage` for authentication persistence.This design choice favors implementation simplicity for single-page applications while relying on strict CSP and lack of third-party runtime scripts to mitigate XSS risk.
 7. **Account Management:** The current implementation does not include self-service email verification or password reset flows.
 
 ---
@@ -406,7 +405,7 @@ The following features represent planned enhancements that are **not implemented
 
 In accordance with academic and submission integrity guidelines, AI assistance was utilized in the following areas during the design and development of RecallOS:
 
-- **Development & Coding Assistance:** An AI coding agent was used for iterative implementation, test creation, and bug fixing based on a phased technical specification. An AI assistant was used for initial requirement decomposition, architecture trade-off discussions, and code review.
+- **Development & Coding Assistance:** An AI coding agent was used for improved implementation and bug fixing based on a technical specification. An AI assistant was used for architecture trade-off discussions, and code review.
 - **Product Integration:** The production product integrates Google Gemini via direct REST calls for automated question-and-answer extraction from text and multimodal vision extraction from scanned PDFs.
 - **Human Verification:** All generated code was verified by hand:
   - The complete test suites (119 backend Pytest cases, 21 frontend Vitest cases) were executed and validated locally.
