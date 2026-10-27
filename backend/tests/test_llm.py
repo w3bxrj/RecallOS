@@ -26,7 +26,10 @@ def test_gemini_client_success() -> None:
     }
 
     def mock_handler(request: httpx.Request) -> httpx.Response:
-        assert "models/gemini-1.5-flash:generateContent" in str(request.url)
+        # Check that key is NEVER in URL
+        assert "key=" not in str(request.url)
+        assert request.headers.get("x-goog-api-key") == "fake-key"
+        assert "models/gemini-2.5-flash:generateContent" in str(request.url)
         body = json.loads(request.content)
         prompt_text = body["contents"][0]["parts"][0]["text"]
         # Verify untrusted delimiters are present
@@ -36,7 +39,7 @@ def test_gemini_client_success() -> None:
 
     transport = httpx.MockTransport(mock_handler)
     client = httpx.Client(transport=transport)
-    gemini = GeminiLLMClient(api_key="fake-key", model_name="gemini-1.5-flash", http_client=client)
+    gemini = GeminiLLMClient(api_key="fake-key", model_name="gemini-2.5-flash", http_client=client)
 
     cards = gemini.generate_cards("Sample notes about operating systems.")
     assert len(cards) == 1
@@ -114,7 +117,9 @@ def test_gemini_vision_client_success() -> None:
     }
 
     def mock_handler(request: httpx.Request) -> httpx.Response:
-        assert "models/gemini-1.5-flash:generateContent" in str(request.url)
+        assert "key=" not in str(request.url)
+        assert request.headers.get("x-goog-api-key") == "fake-key"
+        assert ":generateContent" in str(request.url)
         body = json.loads(request.content)
         parts = body["contents"][0]["parts"]
         # Verify inline_data structure
@@ -162,3 +167,56 @@ def test_gemini_vision_client_empty_study_content_returns_empty_list() -> None:
 
     cards = gemini.generate_cards_from_pdf(b"%PDF-1.4 dummy", "Pages 1-4")
     assert cards == []
+
+
+def test_gemini_client_404_fails_fast_without_retrying() -> None:
+    """HTTP 404 indicates the model is unavailable; must fail fast without retrying."""
+    from app.llm.gemini import GeminiServiceError
+
+    calls = 0
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert "key=" not in str(request.url)
+        assert request.headers.get("x-goog-api-key") == "fake-key"
+        return httpx.Response(404, json={"error": {"message": "models/gemini-old is not found"}})
+
+    transport = httpx.MockTransport(mock_handler)
+    client = httpx.Client(transport=transport)
+    gemini = GeminiLLMClient(api_key="fake-key", http_client=client, max_retries=2)
+
+    with pytest.raises(GeminiServiceError) as exc_info:
+        gemini.generate_cards("Notes")
+
+    # Assert exactly 1 call (no retries!)
+    assert calls == 1
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.user_message == "The AI service is temporarily unavailable. Please try again later."
+
+
+def test_gemini_client_401_403_fails_fast_without_retrying() -> None:
+    """HTTP 401/403 indicates invalid API key/permissions; must fail fast without retrying."""
+    from app.llm.gemini import GeminiServiceError
+
+    calls = 0
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert "key=" not in str(request.url)
+        assert request.headers.get("x-goog-api-key") == "fake-key"
+        return httpx.Response(403, json={"error": {"message": "API key not valid"}})
+
+    transport = httpx.MockTransport(mock_handler)
+    client = httpx.Client(transport=transport)
+    gemini = GeminiLLMClient(api_key="fake-key", http_client=client, max_retries=2)
+
+    with pytest.raises(GeminiServiceError) as exc_info:
+        gemini.generate_cards("Notes")
+
+    # Assert exactly 1 call (no retries!)
+    assert calls == 1
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.user_message == "AI service configuration problem"
+

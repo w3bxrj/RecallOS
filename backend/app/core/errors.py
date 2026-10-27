@@ -4,6 +4,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.redact import redact
+
 logger = logging.getLogger(__name__)
 
 
@@ -12,14 +14,14 @@ class AppException(Exception):
     def __init__(self, status_code: int, code: str, message: str, details: dict = None):
         self.status_code = status_code
         self.code = code
-        self.message = message
+        self.message = redact(message)
         self.details = details or {}
-        super().__init__(message)
+        super().__init__(self.message)
 
 
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     """Handler for custom application exceptions."""
-    err_body = {"code": exc.code, "message": exc.message}
+    err_body = {"code": exc.code, "message": redact(exc.message)}
     if exc.details:
         err_body.update(exc.details)
     return JSONResponse(
@@ -63,7 +65,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
             429: "RATE_LIMITED",
         }
         code = status_code_map.get(exc.status_code, "HTTP_ERROR")
-        message = str(exc.detail) if exc.detail else "An HTTP error occurred"
+        message = redact(str(exc.detail)) if exc.detail else "An HTTP error occurred"
 
     return JSONResponse(
         status_code=exc.status_code,
@@ -73,7 +75,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handler for unexpected unhandled exceptions (500). Does not leak internal trace."""
-    logger.exception("Unhandled server exception on %s %s: %s", request.method, request.url.path, str(exc))
+    logger.exception("Unhandled server exception on %s %s: %s", request.method, request.url.path, redact(str(exc)))
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"error": {"code": "INTERNAL_SERVER_ERROR", "message": "An unexpected internal error occurred."}},

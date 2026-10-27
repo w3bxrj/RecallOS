@@ -74,3 +74,15 @@ def decode_access_token(token: str) -> int:
             code="INVALID_TOKEN",
             message="Could not validate credentials",
         )
+
+
+from app.core.redact import redact
+
+__all__ = [
+    "hash_password",
+    "verify_password",
+    "create_access_token",
+    "decode_access_token",
+    "redact",
+]
+

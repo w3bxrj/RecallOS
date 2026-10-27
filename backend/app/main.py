@@ -1,14 +1,17 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import update, text
+import httpx
 
 
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.core.redact import redact
 from app.models.job import Job
 from app.ws.publisher import ws_publisher
 from app.core.errors import (
@@ -18,6 +21,8 @@ from app.core.errors import (
     http_exception_handler,
     generic_exception_handler,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -44,6 +49,36 @@ async def lifespan(app: FastAPI):
             db.commit()
     except Exception:
         pass
+
+    # 3. Model availability sanity check in production (fail fast warning, never blocks startup)
+    if settings.ENV == "production" and settings.GEMINI_API_KEY:
+        try:
+            model_url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}"
+            headers = {"x-goog-api-key": settings.GEMINI_API_KEY}
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                res = await client.get(model_url, headers=headers)
+                if res.status_code == 404:
+                    logger.warning(
+                        "Configured GEMINI_MODEL '%s' was not found (HTTP 404). Flashcard generation may fail. Update GEMINI_MODEL env var.",
+                        settings.GEMINI_MODEL,
+                    )
+                elif res.status_code in (401, 403):
+                    logger.warning(
+                        "Gemini API returned HTTP %d for model '%s'. Check GEMINI_API_KEY.",
+                        res.status_code,
+                        settings.GEMINI_MODEL,
+                    )
+                elif res.status_code != 200:
+                    logger.warning(
+                        "Gemini model check returned HTTP %d for model '%s'.",
+                        res.status_code,
+                        settings.GEMINI_MODEL,
+                    )
+                else:
+                    logger.info("Gemini model '%s' verified successfully.", settings.GEMINI_MODEL)
+        except Exception as check_exc:
+            logger.warning("Failed to verify Gemini model at startup: %s", redact(str(check_exc)))
+
     yield
 
 

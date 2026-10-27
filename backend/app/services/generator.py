@@ -7,9 +7,10 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.errors import AppException
+from app.core.redact import redact
 from app.core.time import today_ist, now_ist
 from app.llm.base import LLMClient
-from app.llm.gemini import GeminiLLMClient
+from app.llm.gemini import GeminiLLMClient, GeminiServiceError
 from app.models.job import Job
 from app.models.card import Card
 from app.models.card_state import CardState
@@ -126,14 +127,48 @@ def run_card_generation(
                         reason="No valid cards extracted from chunk",
                     )
 
+            except GeminiServiceError as gse:
+                if gse.status_code == 404:
+                    logger.error(
+                        "GEMINI_MODEL is unavailable, update the env var (job_id=%s, chunk_index=%s, status=%s, model=%s)",
+                        job_id,
+                        idx,
+                        gse.status_code,
+                        gse.model_name,
+                    )
+                elif gse.status_code in (401, 403):
+                    logger.error(
+                        "GEMINI_MODEL configuration problem (job_id=%s, chunk_index=%s, status=%s, model=%s)",
+                        job_id,
+                        idx,
+                        gse.status_code,
+                        gse.model_name,
+                    )
+                else:
+                    logger.error(
+                        "Gemini service error: %s (job_id=%s, chunk_index=%s, status=%s, model=%s)",
+                        gse.user_message,
+                        job_id,
+                        idx,
+                        gse.status_code,
+                        gse.model_name,
+                    )
+                # Fail fast on 404/401/403 or exhausted retry: do not continue chunk loop
+                job.status = "failed"
+                job.error_message = gse.user_message
+                job.finished_at = now_ist()
+                db.commit()
+                publisher.failed(job_id=job_id, message=job.error_message)
+                return
+
             except Exception as chunk_exc:
-                logger.warning("Chunk %d failed in job %d: %s", idx, job_id, chunk_exc)
+                logger.warning("Chunk %d failed in job %d: %s", idx, job_id, redact(str(chunk_exc)))
                 job.done_chunks = idx + 1
                 db.commit()
                 publisher.chunk_failed(
                     job_id=job_id,
                     chunk_index=idx,
-                    reason=str(chunk_exc),
+                    reason="Card extraction failed for this chunk",
                 )
 
         # Complete job
@@ -155,12 +190,12 @@ def run_card_generation(
             logger.warning("Job %d marked failed (0 cards created).", job_id)
 
     except Exception as exc:
-        logger.exception("Unexpected exception in background generation job %d: %s", job_id, exc)
+        logger.exception("Unexpected exception in background generation job %d: %s", job_id, redact(str(exc)))
         try:
             job = db.get(Job, job_id)
             if job:
                 job.status = "failed"
-                job.error_message = f"Generation failed unexpectedly: {str(exc)}"
+                job.error_message = "An unexpected error occurred during flashcard generation. Please try again."
                 job.finished_at = now_ist()
                 db.commit()
                 publisher.failed(job_id=job_id, message=job.error_message)
@@ -270,20 +305,54 @@ def run_vision_card_generation(
                         page_range=page_range_label,
                     )
 
+            except GeminiServiceError as gse:
+                if gse.status_code == 404:
+                    logger.error(
+                        "GEMINI_MODEL is unavailable, update the env var (job_id=%s, chunk_index=%s, status=%s, model=%s)",
+                        job_id,
+                        idx,
+                        gse.status_code,
+                        gse.model_name,
+                    )
+                elif gse.status_code in (401, 403):
+                    logger.error(
+                        "GEMINI_MODEL configuration problem (job_id=%s, chunk_index=%s, status=%s, model=%s)",
+                        job_id,
+                        idx,
+                        gse.status_code,
+                        gse.model_name,
+                    )
+                else:
+                    logger.error(
+                        "Gemini service error: %s (job_id=%s, chunk_index=%s, status=%s, model=%s)",
+                        gse.user_message,
+                        job_id,
+                        idx,
+                        gse.status_code,
+                        gse.model_name,
+                    )
+                # Fail fast on 404/401/403 or exhausted retry: do not continue chunk loop
+                job.status = "failed"
+                job.error_message = gse.user_message
+                job.finished_at = now_ist()
+                db.commit()
+                publisher.failed(job_id=job_id, message=job.error_message)
+                return
+
             except Exception as chunk_exc:
                 logger.warning(
                     "Vision chunk %d (%s) failed in job %d: %s",
                     idx,
                     page_range_label,
                     job_id,
-                    chunk_exc,
+                    redact(str(chunk_exc)),
                 )
                 job.done_chunks = idx + 1
                 db.commit()
                 publisher.chunk_failed(
                     job_id=job_id,
                     chunk_index=idx,
-                    reason=str(chunk_exc),
+                    reason="Card extraction failed for this chunk",
                 )
 
         # Complete job
@@ -305,12 +374,12 @@ def run_vision_card_generation(
             logger.warning("Job %d marked failed (0 cards created in vision mode).", job_id)
 
     except Exception as exc:
-        logger.exception("Unexpected exception in background vision generation job %d: %s", job_id, exc)
+        logger.exception("Unexpected exception in background vision generation job %d: %s", job_id, redact(str(exc)))
         try:
             job = db.get(Job, job_id)
             if job:
                 job.status = "failed"
-                job.error_message = f"Generation failed unexpectedly: {str(exc)}"
+                job.error_message = "An unexpected error occurred during flashcard generation. Please try again."
                 job.finished_at = now_ist()
                 db.commit()
                 publisher.failed(job_id=job_id, message=job.error_message)

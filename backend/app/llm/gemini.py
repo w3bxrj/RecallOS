@@ -6,11 +6,29 @@ from typing import List, Dict, Any, Optional
 import httpx
 
 from app.core.config import settings
+from app.core.redact import redact
 from app.llm.base import LLMClient
 
 logger = logging.getLogger(__name__)
 
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+
+
+class GeminiServiceError(Exception):
+    """Raised when Gemini API encounters an HTTP error, model unavailability, or rate limit exhaustion."""
+
+    def __init__(
+        self,
+        status_code: int,
+        user_message: str,
+        model_name: str,
+        server_log: str = "",
+    ) -> None:
+        self.status_code = status_code
+        self.user_message = user_message
+        self.model_name = model_name
+        self.server_log = server_log
+        super().__init__(user_message)
 
 
 class GeminiLLMClient(LLMClient):
@@ -83,16 +101,39 @@ RULES FOR DISTRACTORS:
     def _execute_with_retries(
         self, payload: Dict[str, Any], timeout: float = 60.0
     ) -> List[Dict[str, Any]]:
-        """Executes Gemini generateContent request with retries, backoff, and JSON parsing."""
-        url = f"{GEMINI_API_BASE_URL}/{self.model_name}:generateContent?key={self.api_key}"
+        """Executes Gemini generateContent request with header auth, retries, and error mapping."""
+        # Send key in header, NEVER in query parameters
+        url = f"{GEMINI_API_BASE_URL}/{self.model_name}:generateContent"
+        headers = {
+            "x-goog-api-key": self.api_key,
+            "Content-Type": "application/json",
+        }
 
         attempts = 0
         while attempts <= self.max_retries:
             attempts += 1
             try:
-                response = self.client.post(url, json=payload, timeout=timeout)
+                response = self.client.post(url, json=payload, headers=headers, timeout=timeout)
 
-                # Handle rate limiting (429)
+                # 404: Configured model is unavailable. Fail fast without retrying.
+                if response.status_code == 404:
+                    raise GeminiServiceError(
+                        status_code=404,
+                        user_message="The AI service is temporarily unavailable. Please try again later.",
+                        model_name=self.model_name,
+                        server_log=f"GEMINI_MODEL is unavailable, update the env var (model: {self.model_name}, status: 404)",
+                    )
+
+                # 401/403: API key or permissions invalid. Fail fast without retrying.
+                if response.status_code in (401, 403):
+                    raise GeminiServiceError(
+                        status_code=response.status_code,
+                        user_message="AI service configuration problem",
+                        model_name=self.model_name,
+                        server_log=f"GEMINI_MODEL configuration problem (model: {self.model_name}, status: {response.status_code})",
+                    )
+
+                # 429: Rate limit encountered
                 if response.status_code == 429:
                     retry_after_header = response.headers.get("retry-after")
                     if retry_after_header:
@@ -113,10 +154,14 @@ RULES FOR DISTRACTORS:
                         time.sleep(sleep_time)
                         continue
                     else:
-                        logger.error("Exhausted retries on 429 rate limit.")
-                        return []
+                        raise GeminiServiceError(
+                            status_code=429,
+                            user_message="The AI service is busy. Please try again in a minute.",
+                            model_name=self.model_name,
+                            server_log=f"Exhausted retries on 429 rate limit (model: {self.model_name})",
+                        )
 
-                # Handle 5xx server errors
+                # 5xx: Server errors
                 if response.status_code >= 500:
                     sleep_time = self.retry_backoff_base * (2 ** (attempts - 1))
                     logger.warning(
@@ -130,8 +175,12 @@ RULES FOR DISTRACTORS:
                         time.sleep(sleep_time)
                         continue
                     else:
-                        logger.error("Exhausted retries on Gemini 5xx.")
-                        return []
+                        raise GeminiServiceError(
+                            status_code=response.status_code,
+                            user_message="The AI service is busy. Please try again in a minute.",
+                            model_name=self.model_name,
+                            server_log=f"Exhausted retries on Gemini 5xx ({response.status_code}) (model: {self.model_name})",
+                        )
 
                 response.raise_for_status()
                 data = response.json()
@@ -146,11 +195,13 @@ RULES FOR DISTRACTORS:
                 cards = self._parse_json(raw_text)
                 return cards
 
+            except GeminiServiceError:
+                raise
             except (httpx.TimeoutException, httpx.NetworkError) as err:
                 sleep_time = self.retry_backoff_base * (2 ** (attempts - 1))
                 logger.warning(
                     "Network/timeout error (%s) on attempt %d/%d. Sleeping %.2fs.",
-                    err,
+                    redact(str(err)),
                     attempts,
                     self.max_retries + 1,
                     sleep_time,
@@ -159,13 +210,17 @@ RULES FOR DISTRACTORS:
                     time.sleep(sleep_time)
                     continue
                 else:
-                    logger.error("Exhausted retries on network error: %s", err)
-                    return []
+                    raise GeminiServiceError(
+                        status_code=503,
+                        user_message="The AI service is busy. Please try again in a minute.",
+                        model_name=self.model_name,
+                        server_log=f"Exhausted retries on network error: {redact(str(err))}",
+                    )
             except json.JSONDecodeError as json_err:
                 sleep_time = self.retry_backoff_base * (2 ** (attempts - 1))
                 logger.warning(
                     "Invalid JSON returned from LLM (%s) on attempt %d/%d.",
-                    json_err,
+                    redact(str(json_err)),
                     attempts,
                     self.max_retries + 1,
                 )
@@ -176,7 +231,7 @@ RULES FOR DISTRACTORS:
                     logger.error("Exhausted retries on invalid LLM JSON.")
                     return []
             except Exception as e:
-                logger.error("Unexpected error during card generation: %s", e)
+                logger.error("Unexpected error during card generation: %s", redact(str(e)))
                 return []
 
         return []
