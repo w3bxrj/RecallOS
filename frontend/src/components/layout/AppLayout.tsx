@@ -11,7 +11,7 @@ export const AppLayout: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-app text-txt-primary font-sans transition-colors duration-200">
       <WakeupBanner />
       <Navbar />
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 md:py-8">
         <AnimatePresence mode="wait">
           <m.div
             key={location.pathname}

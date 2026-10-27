@@ -105,10 +105,11 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
               {overview?.reviews_last_7_days ? (
                 <RecentReviewsChart data={overview.reviews_last_7_days} />
               ) : (
-                <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs h-[320px] flex items-center justify-center text-xs text-slate-400">
+                <div className="bg-surface rounded-3xl p-6 border border-border-subtle shadow-card h-[320px] flex items-center justify-center text-xs text-txt-muted">
                   Reviews history loading...
                 </div>
               )}
+
             </div>
 
             <div>

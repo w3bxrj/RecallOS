@@ -42,25 +42,157 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-md bg-surface/85 border-b border-border-subtle transition-colors duration-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center">
-          {/* Logo & Navigation */}
-          <div className="flex items-center gap-8">
-            <NavLink
-              to="/dashboard"
-              className="flex items-center gap-2.5 font-extrabold text-xl tracking-tight select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-xl"
-            >
-              <div className="w-9 h-9 rounded-xl brand-gradient flex items-center justify-center text-white shadow-sm shadow-indigo-500/25">
-                <Brain className="w-5 h-5" />
-              </div>
-              <span className="text-txt-primary">
-                Recall<span className="brand-gradient-text">OS</span>
-              </span>
-            </NavLink>
+    <>
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-surface/85 border-b border-border-subtle transition-colors duration-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16 items-center">
+            {/* Logo & Navigation */}
+            <div className="flex items-center gap-8">
+              <NavLink
+                to="/dashboard"
+                className="flex items-center gap-2.5 font-extrabold text-xl tracking-tight select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-xl"
+              >
+                <div className="w-9 h-9 rounded-xl brand-gradient flex items-center justify-center text-white shadow-sm shadow-indigo-500/25">
+                  <Brain className="w-5 h-5" />
+                </div>
+                <span className="text-txt-primary">
+                  Recall<span className="brand-gradient-text">OS</span>
+                </span>
+              </NavLink>
 
-            {/* Desktop Navigation Links with animated active pill */}
-            <nav className="hidden md:flex items-center space-x-1" aria-label="Main Navigation">
+              {/* Desktop Navigation Links with animated active pill */}
+              <nav className="hidden md:flex items-center space-x-1" aria-label="Main Navigation">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname.startsWith(item.to);
+
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                        isActive
+                          ? 'text-brand'
+                          : 'text-txt-secondary hover:text-txt-primary hover:bg-surface-muted/60'
+                      }`}
+                    >
+                      {isActive && (
+                        <m.div
+                          layoutId="nav-active-pill"
+                          className="absolute inset-0 rounded-xl bg-brand/10 dark:bg-brand/20 -z-10"
+                          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                        />
+                      )}
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* Right Action Items (Desktop) */}
+            <div className="hidden md:flex items-center gap-3">
+              {/* Theme Toggle Button */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="p-2 rounded-xl text-txt-secondary hover:text-txt-primary hover:bg-surface-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand cursor-pointer"
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  <m.div
+                    key={theme}
+                    initial={{ rotate: -90, opacity: 0, scale: 0.8 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: 90, opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    {theme === 'dark' ? (
+                      <Sun className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <Moon className="w-4 h-4 text-slate-700" />
+                    )}
+                  </m.div>
+                </AnimatePresence>
+              </button>
+
+              {/* User display badge */}
+              {user && (
+                <span className="text-xs font-semibold text-txt-secondary bg-surface-muted px-3 py-1.5 rounded-lg border border-border-subtle">
+                  {user.display_name}
+                </span>
+              )}
+
+              {/* Logout button */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-txt-secondary hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 cursor-pointer"
+                title="Log out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Logout</span>
+              </button>
+            </div>
+
+            {/* Mobile Top Header Actions */}
+            <div className="flex md:hidden items-center gap-2">
+              {/* Theme Toggle */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="p-2 rounded-xl text-txt-secondary hover:text-txt-primary hover:bg-surface-muted transition-colors cursor-pointer"
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-5 h-5 text-amber-400" />
+                ) : (
+                  <Moon className="w-5 h-5 text-slate-700" />
+                )}
+              </button>
+
+              {/* Mobile Quick Logout */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                aria-label="Logout"
+                title="Logout"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+
+              {/* Mobile More Options / Sheet trigger */}
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 rounded-xl text-txt-secondary hover:text-txt-primary hover:bg-surface-muted focus:outline-none cursor-pointer"
+                aria-label="Toggle user options"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile slide-in / dropdown panel */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <m.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="md:hidden border-t border-border-subtle bg-surface px-4 pt-3 pb-5 space-y-1 shadow-elevated overflow-hidden"
+            >
+              {user && (
+                <div className="px-3 py-2 mb-2 text-xs font-semibold text-txt-muted uppercase tracking-wider border-b border-border-subtle flex items-center justify-between">
+                  <span>Signed in as</span>
+                  <span className="text-txt-primary font-bold">{user.display_name}</span>
+                </div>
+              )}
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname.startsWith(item.to);
@@ -69,153 +201,70 @@ export const Navbar: React.FC = () => {
                   <NavLink
                     key={item.to}
                     to={item.to}
-                    className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                       isActive
-                        ? 'text-brand'
-                        : 'text-txt-secondary hover:text-txt-primary hover:bg-surface-muted/60'
+                        ? 'bg-brand/10 text-brand dark:bg-brand/20'
+                        : 'text-txt-secondary hover:text-txt-primary hover:bg-surface-muted'
                     }`}
                   >
-                    {isActive && (
-                      <m.div
-                        layoutId="nav-active-pill"
-                        className="absolute inset-0 rounded-xl bg-brand/10 dark:bg-brand/20 -z-10"
-                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                      />
-                    )}
-                    <Icon className="w-4 h-4 shrink-0" />
+                    <Icon className="w-5 h-5" />
                     <span>{item.label}</span>
                   </NavLink>
                 );
               })}
-            </nav>
-          </div>
-
-          {/* Right Action Items (Desktop) */}
-          <div className="hidden md:flex items-center gap-3">
-            {/* Theme Toggle Button */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="p-2 rounded-xl text-txt-secondary hover:text-txt-primary hover:bg-surface-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand cursor-pointer"
-              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                <m.div
-                  key={theme}
-                  initial={{ rotate: -90, opacity: 0, scale: 0.8 }}
-                  animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                  exit={{ rotate: 90, opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.18 }}
+              <div className="pt-3 mt-2 border-t border-border-subtle">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
                 >
-                  {theme === 'dark' ? (
-                    <Sun className="w-4 h-4 text-amber-400" />
-                  ) : (
-                    <Moon className="w-4 h-4 text-slate-700" />
-                  )}
-                </m.div>
-              </AnimatePresence>
-            </button>
-
-            {/* User display badge */}
-            {user && (
-              <span className="text-xs font-semibold text-txt-secondary bg-surface-muted px-3 py-1.5 rounded-lg border border-border-subtle">
-                {user.display_name}
-              </span>
-            )}
-
-            {/* Logout button */}
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-txt-secondary hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 cursor-pointer"
-              title="Log out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Logout</span>
-            </button>
-          </div>
-
-          {/* Mobile Right Bar */}
-          <div className="flex md:hidden items-center gap-2">
-            {/* Mobile Theme Toggle */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="p-2 rounded-xl text-txt-secondary hover:text-txt-primary hover:bg-surface-muted transition-colors cursor-pointer"
-              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            >
-              {theme === 'dark' ? (
-                <Sun className="w-5 h-5 text-amber-400" />
-              ) : (
-                <Moon className="w-5 h-5 text-slate-700" />
-              )}
-            </button>
-
-            {/* Mobile menu trigger */}
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-xl text-txt-secondary hover:text-txt-primary hover:bg-surface-muted focus:outline-none cursor-pointer"
-              aria-label="Toggle navigation menu"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Menu Dropdown */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <m.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="md:hidden border-t border-border-subtle bg-surface px-4 pt-3 pb-5 space-y-1 shadow-elevated overflow-hidden"
-          >
-            {user && (
-              <div className="px-3 py-2 mb-2 text-xs font-semibold text-txt-muted uppercase tracking-wider border-b border-border-subtle">
-                Signed in as <span className="text-txt-primary font-bold">{user.display_name}</span>
+                  <LogOut className="w-5 h-5" />
+                  <span>Logout</span>
+                </button>
               </div>
-            )}
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname.startsWith(item.to);
+            </m.div>
+          )}
+        </AnimatePresence>
+      </header>
 
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                    isActive
-                      ? 'bg-brand/10 text-brand dark:bg-brand/20'
-                      : 'text-txt-secondary hover:text-txt-primary hover:bg-surface-muted'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </NavLink>
-              );
-            })}
-            <div className="pt-3 mt-2 border-t border-border-subtle">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleLogout();
-                }}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
-              >
-                <LogOut className="w-5 h-5" />
-                <span>Logout</span>
-              </button>
-            </div>
-          </m.div>
-        )}
-      </AnimatePresence>
-    </header>
+      {/* Mobile Bottom Navigation Bar */}
+      <nav
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/90 backdrop-blur-lg border-t border-border-subtle px-2 py-1.5 flex items-center justify-around shadow-elevated"
+        aria-label="Mobile Bottom Navigation"
+      >
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = location.pathname.startsWith(item.to);
+
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={`relative flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-colors ${
+                isActive
+                  ? 'text-brand font-bold'
+                  : 'text-txt-muted hover:text-txt-primary font-medium'
+              }`}
+            >
+              <div className="relative">
+                <Icon className={`w-5 h-5 transition-transform ${isActive ? 'scale-110' : ''}`} />
+                {isActive && (
+                  <m.span
+                    layoutId="mobile-nav-dot"
+                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-brand"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+              </div>
+              <span className="text-[10px] mt-1 tracking-tight">{item.label}</span>
+            </NavLink>
+          );
+        })}
+      </nav>
+    </>
   );
 };

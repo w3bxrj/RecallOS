@@ -29,20 +29,20 @@ export const RecentReviewsChart: React.FC<RecentReviewsChartProps> = ({ data }) 
 
   return (
     <div
-      className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[320px]"
+      className="bg-surface rounded-3xl p-6 border border-border-subtle shadow-card flex flex-col justify-between min-h-[320px]"
       aria-label={ariaLabel}
     >
       <div>
         <div className="flex items-center justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-slate-900 tracking-tight">
+            <h3 className="text-base font-bold text-txt-primary tracking-tight">
               Reviews in the last 7 days
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-txt-muted mt-0.5">
               Daily study consistency leading up to today.
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+          <div className="flex items-center gap-2 text-xs font-semibold text-txt-primary bg-surface-muted border border-border-subtle px-2.5 py-1 rounded-lg tabular-nums">
             <span>{totalReviews} Total</span>
           </div>
         </div>
@@ -53,11 +53,11 @@ export const RecentReviewsChart: React.FC<RecentReviewsChartProps> = ({ data }) 
               data={data}
               margin={{ top: 15, right: 10, left: -20, bottom: 20 }}
             >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-subtle)" />
 
               <XAxis
                 dataKey="date"
-                stroke="#94a3b8"
+                stroke="var(--text-muted)"
                 fontSize={11}
                 tickLine={false}
                 tickFormatter={(val: string, idx: number) =>
@@ -67,7 +67,7 @@ export const RecentReviewsChart: React.FC<RecentReviewsChartProps> = ({ data }) 
                   value: 'Date',
                   position: 'insideBottom',
                   offset: -12,
-                  fill: '#64748b',
+                  fill: 'var(--text-muted)',
                   fontSize: 11,
                   fontWeight: 600,
                 }}
@@ -75,7 +75,7 @@ export const RecentReviewsChart: React.FC<RecentReviewsChartProps> = ({ data }) 
 
               <YAxis
                 allowDecimals={false}
-                stroke="#94a3b8"
+                stroke="var(--text-muted)"
                 fontSize={11}
                 tickLine={false}
                 label={{
@@ -83,14 +83,14 @@ export const RecentReviewsChart: React.FC<RecentReviewsChartProps> = ({ data }) 
                   angle: -90,
                   position: 'insideLeft',
                   offset: 25,
-                  fill: '#64748b',
+                  fill: 'var(--text-muted)',
                   fontSize: 11,
                   fontWeight: 600,
                 }}
               />
 
               <Tooltip
-                cursor={{ fill: '#f8fafc' }}
+                cursor={{ fill: 'var(--bg-surface-muted)' }}
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     const item = payload[0].payload as DailyReviewCount;
@@ -100,11 +100,11 @@ export const RecentReviewsChart: React.FC<RecentReviewsChartProps> = ({ data }) 
                       : formatIstDate(item.date);
 
                     return (
-                      <div className="bg-slate-900 text-white rounded-xl px-3 py-2 text-xs shadow-lg space-y-1">
-                        <p className="font-bold text-slate-100">{dateLabel}</p>
-                        <p className="text-indigo-300">
-                          Reviews:{' '}
-                          <span className="font-extrabold text-white">
+                      <div className="bg-surface-elevated text-txt-primary border border-border-subtle rounded-xl px-3.5 py-2.5 text-xs shadow-elevated space-y-1">
+                        <p className="font-bold text-txt-primary">{dateLabel}</p>
+                        <p className="text-txt-secondary">
+                          Reviews Completed:{' '}
+                          <span className="font-bold text-brand tabular-nums">
                             {item.count}
                           </span>
                         </p>
@@ -115,15 +115,13 @@ export const RecentReviewsChart: React.FC<RecentReviewsChartProps> = ({ data }) 
                 }}
               />
 
-              <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={32}>
+              <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={32}>
                 {data.map((entry, index) => {
                   const isToday = index === todayIdx;
                   return (
                     <Cell
-                      key={`review-bar-${index}`}
-                      fill={isToday ? '#4f46e5' : '#cbd5e1'}
-                      stroke={isToday ? '#4338ca' : '#94a3b8'}
-                      strokeWidth={isToday ? 1.5 : 1}
+                      key={`review-cell-${index}`}
+                      fill={isToday ? 'var(--brand-primary)' : 'var(--border-strong)'}
                     />
                   );
                 })}
@@ -133,12 +131,11 @@ export const RecentReviewsChart: React.FC<RecentReviewsChartProps> = ({ data }) 
         </div>
       </div>
 
-      <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm bg-indigo-600 inline-block" />
-          <span className="font-medium text-slate-700">Today's reviews highlighted</span>
-        </div>
-        <span className="text-slate-400">Past 6 days in slate</span>
+      <div className="pt-3 border-t border-border-subtle text-[11px] text-txt-muted flex items-center justify-between">
+        <span>7-day active window</span>
+        <span className="text-txt-secondary">
+          Today: <strong className="text-brand font-bold tabular-nums">{todayIdx >= 0 ? data[todayIdx].count : 0}</strong> reviews
+        </span>
       </div>
     </div>
   );
