@@ -119,3 +119,37 @@ export interface ReviewSubmitResponse {
   prev_interval: number;
   new_interval: number;
 }
+
+export interface DailyReviewCount {
+  date: string;
+  count: number;
+}
+
+export interface StatsOverviewResponse {
+  due_today: number;
+  queue_size_today: number;
+  daily_limit: number;
+  total_cards: number;
+  reviews_last_7_days: DailyReviewCount[];
+  streak_days: number;
+  expected_retention_on_exam: number | null;
+  exam_date: string | null;
+  days_to_exam: number | null;
+}
+
+export interface TopicAccuracyItem {
+  topic: string;
+  accuracy: number | null;
+  reviews_count: number;
+  is_weak: boolean;
+}
+
+export interface ForecastItem {
+  date: string;
+  due_count: number;
+}
+
+export interface ForecastResponse {
+  forecast: ForecastItem[];
+}
+
