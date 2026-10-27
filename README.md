@@ -4,29 +4,6 @@
 
 ---
 
-## Table of Contents
-
-- [1. Project Name](#1-project-name)
-- [2. Problem Statement](#2-problem-statement)
-- [3. Target Users](#3-target-users)
-- [4. Solution](#4-solution)
-- [5. Key Features](#5-key-features)
-- [6. Tech Stack](#6-tech-stack)
-- [7. Architecture](#7-architecture)
-- [8. Local Setup](#8-local-setup)
-- [9. Environment Variables](#9-environment-variables)
-- [10. Deployment](#10-deployment)
-- [11. Demo Credentials](#11-demo-credentials)
-- [12. Testing](#12-testing)
-- [13. Security and Engineering Decisions](#13-security-and-engineering-decisions)
-- [14. Known Limitations](#14-known-limitations)
-- [15. Future Work](#15-future-work)
-- [16. AI Usage](#16-ai-usage)
-- [17. Screenshots](#17-screenshots)
-- [18. License and Credits](#18-license-and-credits)
-
----
-
 ## 1. Project Name
 
 **RecallOS**  
