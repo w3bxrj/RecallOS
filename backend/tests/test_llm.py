@@ -84,3 +84,81 @@ def test_gemini_client_invalid_json_skips_after_retries() -> None:
     # 1 initial + 2 retries = 3 attempts
     assert attempt == 3
     assert cards == []
+
+
+def test_gemini_vision_client_success() -> None:
+    """Test vision card generation sends inline_data with application/pdf and parses cards."""
+    import base64
+
+    fake_pdf_bytes = b"%PDF-1.4 fake pdf binary content"
+    sample_cards = [
+        {
+            "topic": "Mathematics",
+            "question": "What is the proof that sqrt(2) is irrational?",
+            "answer": "Assume sqrt(2) = p/q in lowest terms, then 2q^2 = p^2 which contradicts coprimality.",
+            "distractors": [
+                "Assume sqrt(2) is transcendental.",
+                "Calculate pi decimals up to 10 places.",
+                "Integrate 1/x from 1 to 2.",
+            ],
+        }
+    ]
+    mock_response_json = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": json.dumps(sample_cards)}]
+                }
+            }
+        ]
+    }
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        assert "models/gemini-1.5-flash:generateContent" in str(request.url)
+        body = json.loads(request.content)
+        parts = body["contents"][0]["parts"]
+        # Verify inline_data structure
+        assert len(parts) == 2
+        inline_part = parts[0]
+        assert "inline_data" in inline_part
+        assert inline_part["inline_data"]["mime_type"] == "application/pdf"
+        assert inline_part["inline_data"]["data"] == base64.b64encode(fake_pdf_bytes).decode("utf-8")
+
+        prompt_text = parts[1]["text"]
+        # Verify prompt guidelines and prompt injection guard
+        assert "Pages 1-4" in prompt_text
+        assert "SECURITY AND INTEGRITY DIRECTIVE" in prompt_text
+        assert "NOT LaTeX" in prompt_text
+        return httpx.Response(200, json=mock_response_json)
+
+    transport = httpx.MockTransport(mock_handler)
+    client = httpx.Client(transport=transport)
+    gemini = GeminiLLMClient(api_key="fake-key", http_client=client)
+
+    cards = gemini.generate_cards_from_pdf(fake_pdf_bytes, "Pages 1-4")
+    assert len(cards) == 1
+    assert cards[0]["topic"] == "Mathematics"
+    assert "sqrt(2)" in cards[0]["question"]
+
+
+def test_gemini_vision_client_empty_study_content_returns_empty_list() -> None:
+    """When a scanned page chunk has no study content, returning empty list [] is not an error."""
+    mock_response_json = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": "[]"}]
+                }
+            }
+        ]
+    }
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=mock_response_json)
+
+    transport = httpx.MockTransport(mock_handler)
+    client = httpx.Client(transport=transport)
+    gemini = GeminiLLMClient(api_key="fake-key", http_client=client)
+
+    cards = gemini.generate_cards_from_pdf(b"%PDF-1.4 dummy", "Pages 1-4")
+    assert cards == []
